@@ -60,8 +60,9 @@ jobs:
           # 2. Go to project folder
           cd /var/www/html/NewsHub
           
-          # 3. Rename new JAR to app.jar (Overwrite existing)
-          mv target/*.jar app.jar
+          # 3. Rename new JAR to app.jar
+          rm -f app.jar                 # Delete old running file
+          mv news-insight-*.jar app.jar # Rename the new uploaded file
           
           # 4. Start with setsid (Strongest detach method)
           source ~/.bashrc
