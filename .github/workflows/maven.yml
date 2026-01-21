@@ -60,7 +60,10 @@ jobs:
           echo "Using Java at: $JAVA_HOME"
           java -version
           
-          mvn clean package -DskipTests
+          # Generate Maven Wrapper (if missing) and use it
+          mvn wrapper:wrapper
+          chmod +x mvnw
+          ./mvnw clean package -DskipTests
           
           # 5. Start with setsid
           source ~/.bashrc
