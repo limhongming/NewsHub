@@ -4,3 +4,4 @@
 - **Commit Message:** Use the standard message "Update NewsHub".
 - **Port Convention:** The application runs on Port 8080 (behind Nginx) or Port 80 (standalone). Current setup: Standalone Port 80.
 - **Environment:** Java 21 Spring Boot.
+- **Config Persistence:** The VPS deployment script now backups/restores `application.properties` during sync.
