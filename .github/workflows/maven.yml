@@ -46,8 +46,8 @@ jobs:
           # Rebuild
           mvn clean package -DskipTests
           
-          # Start new server (with system env vars loaded)
+          # Start new server using the JAR directly (More stable, less memory)
           source ~/.bashrc
-          nohup mvn spring-boot:run > log.txt 2>&1 &
+          nohup java -jar target/*.jar > log.txt 2>&1 &
           sleep 5
-          echo "Deployment finished."
+          echo "Deployment finished successfully."
