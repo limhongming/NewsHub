@@ -64,17 +64,17 @@ jobs:
           rm -f app.jar
           mv target/*.jar app.jar
           
-          # Manually source bashrc to get the key, then run with sudo -E (Preserve Env)
-          export GEMINI_API_KEY=$(grep GEMINI_API_KEY ~/.bashrc | cut -d '"' -f 2)
+          # Source bashrc to load env vars
+          source ~/.bashrc
           
-          # Fallback if grep failed (user can also add secret to github actions if this fails)
           if [ -z "$GEMINI_API_KEY" ]; then
-             echo "WARNING: Could not find GEMINI_API_KEY in .bashrc"
+              echo "WARNING: GEMINI_API_KEY is empty after sourcing .bashrc"
           else
-             echo "Found API Key length: ${#GEMINI_API_KEY}"
+              echo "GEMINI_API_KEY found (length: ${#GEMINI_API_KEY})"
           fi
-
-          sudo -E setsid java -jar app.jar > log.txt 2>&1 < /dev/null &
+          
+          # Start with setsid, explicitly passing the env var if needed
+          GEMINI_API_KEY=$GEMINI_API_KEY setsid java -jar app.jar > log.txt 2>&1 < /dev/null &
           
           # 6. Verify
           sleep 10
