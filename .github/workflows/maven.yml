@@ -31,6 +31,8 @@ jobs:
         host: ${{ secrets.host }}
         username: ${{ secrets.username }}
         password: ${{ secrets.key }}
+        timeout: 30m
+        command_timeout: 30m
         script: |
           # Stop the old server (Ignore exit code 143/1)
           pkill -f news-insight || echo "Old process stopped or not found."
