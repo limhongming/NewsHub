@@ -19,57 +19,57 @@ jobs:
         cache: maven
     - name: Build with Maven
       run: mvn -B clean package -DskipTests --file pom.xml
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: news-insight-jar
+        path: target/*.jar
 
   deploy:
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
+    - name: Download Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: news-insight-jar
+        path: target
+
+    - name: Copy JAR to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.host }}
+        username: ${{ secrets.username }}
+        password: ${{ secrets.key }}
+        source: "target/*.jar"
+        target: "/var/www/html/NewsHub"
+        strip_components: 1
+
     - name: Execute Remote Deployment
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.host }}
         username: ${{ secrets.username }}
         password: ${{ secrets.key }}
-        timeout: 30m
-        command_timeout: 30m
+        timeout: 10m
         script: |
-          # 1. Force kill anything running on Port 8080
-          fuser -k 8080/tcp || echo "Port 8080 was already free."
+          # 1. Force kill anything running on Port 80
+          fuser -k 80/tcp || echo "Port 80 was already free."
           
           # 2. Go to project folder
           cd /var/www/html/NewsHub
           
-          # 2.5 Ensure Java 17 is installed (Required for compilation)
-          # Note: 'sudo' might require passwordless sudo for the user
-          # If this fails, you must run 'sudo apt install openjdk-17-jdk' manually once.
+          # 3. Rename new JAR to app.jar
+          # (The scp action put it right here in this folder)
+          rm -f app.jar
+          mv news-insight-*.jar app.jar
           
-          # 3. Pull latest code (Force overwrite local changes)
-          git fetch --all
-          git reset --hard origin/main
-          
-          # 4. Compile and Package on VPS
-          # Force set JAVA_HOME to ensure we use the installed Java 21
-          export JAVA_HOME=$(update-java-alternatives -l | grep java-1.21.0-openjdk | awk '{print $3}')
-          if [ -z "$JAVA_HOME" ]; then
-              # Fallback if grep fails
-              export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-          fi
-          export PATH=$JAVA_HOME/bin:$PATH
-          
-          echo "Using Java at: $JAVA_HOME"
-          java -version
-          
-          # Generate Maven Wrapper (if missing) and use it
-          mvn wrapper:wrapper
-          chmod +x mvnw
-          ./mvnw clean package -DskipTests
-          
-          # 5. Start with setsid
+          # 4. Start with setsid (Strongest detach method)
           source ~/.bashrc
-          setsid java -jar target/*.jar > log.txt 2>&1 < /dev/null &
+          setsid java -jar app.jar > log.txt 2>&1 < /dev/null &
           
-          # 6. Verify it started
+          # 5. Verify it started
           sleep 10
           echo "====== SERVER LOGS (Last 50 lines) ======"
           tail -n 50 log.txt
