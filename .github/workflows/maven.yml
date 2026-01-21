@@ -47,3 +47,5 @@ jobs:
           # Start new server (with system env vars loaded)
           source ~/.bashrc
           nohup mvn spring-boot:run > log.txt 2>&1 &
+          sleep 5
+          echo "Deployment finished."
