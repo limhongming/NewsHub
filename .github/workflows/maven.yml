@@ -19,35 +19,52 @@ jobs:
         cache: maven
     - name: Build with Maven
       run: mvn -B clean package -DskipTests --file pom.xml
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: news-insight-jar
+        path: target/*.jar
 
   deploy:
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-    - name: Deploy to VPS
+    - name: Download Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: news-insight-jar
+        path: target
+
+    - name: Copy JAR to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.host }}
+        username: ${{ secrets.username }}
+        password: ${{ secrets.key }}
+        source: "target/*.jar"
+        target: "/var/www/html/NewsHub"
+        strip_components: 1
+
+    - name: Execute Remote Deployment
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.host }}
         username: ${{ secrets.username }}
         password: ${{ secrets.key }}
-        timeout: 30m
-        command_timeout: 30m
+        timeout: 10m
         script: |
-          # Stop the old server (Ignore exit code 143/1)
+          # Stop the old server
           pkill -f news-insight || echo "Old process stopped or not found."
           
-          # Go to project folder
+          # Navigate to project folder
           cd /var/www/html/NewsHub
           
-          # Get latest code
-          git pull origin main
+          # Move the new jar into place
+          mv *.jar app.jar
           
-          # Rebuild
-          mvn clean package -DskipTests
-          
-          # Start new server using the JAR directly (More stable, less memory)
+          # Load env vars and start (Lighter execution)
           source ~/.bashrc
-          nohup java -jar target/*.jar > log.txt 2>&1 &
+          nohup java -jar app.jar > log.txt 2>&1 &
           sleep 5
           echo "Deployment finished successfully."
