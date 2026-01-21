@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: checkout@v3
     - name: Set up JDK 17
       uses: actions/setup-java@v3
       with:
@@ -19,40 +19,20 @@ jobs:
         cache: maven
     - name: Build with Maven
       run: mvn -B clean package -DskipTests --file pom.xml
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: news-insight-jar
-        path: target/*.jar
 
   deploy:
     needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-    - name: Download Artifact
-      uses: actions/download-artifact@v4
-      with:
-        name: news-insight-jar
-        path: target
-
-    - name: Copy JAR to VPS
-      uses: appleboy/scp-action@v0.1.7
-      with:
-        host: ${{ secrets.host }}
-        username: ${{ secrets.username }}
-        password: ${{ secrets.key }}
-        source: "target/*.jar"
-        target: "/var/www/html/NewsHub"
-        strip_components: 1
-
     - name: Execute Remote Deployment
       uses: appleboy/ssh-action@v1.0.0
       with:
         host: ${{ secrets.host }}
         username: ${{ secrets.username }}
         password: ${{ secrets.key }}
-        timeout: 10m
+        timeout: 30m
+        command_timeout: 30m
         script: |
           # 1. Force kill anything running on Port 8080
           fuser -k 8080/tcp || echo "Port 8080 was already free."
@@ -60,19 +40,17 @@ jobs:
           # 2. Go to project folder
           cd /var/www/html/NewsHub
           
-          # DEBUG: List all files to see what was uploaded
-          echo "Current directory contents:"
-          ls -la
+          # 3. Pull latest code
+          git pull origin main
           
-          # 3. Rename new JAR to app.jar
-          rm -f app.jar                 # Delete old running file
-          mv news-insight-*.jar app.jar # Rename the new uploaded file
+          # 4. Compile and Package on VPS
+          mvn clean package -DskipTests
           
-          # 4. Start with setsid (Strongest detach method)
+          # 5. Start with setsid
           source ~/.bashrc
-          setsid java -jar app.jar > log.txt 2>&1 < /dev/null &
+          setsid java -jar target/*.jar > log.txt 2>&1 < /dev/null &
           
-          # 5. Verify it started
+          # 6. Verify it started
           sleep 10
           echo "====== SERVER LOGS (Last 50 lines) ======"
           tail -n 50 log.txt
