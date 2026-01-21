@@ -17,7 +17,7 @@ import java.util.List;
 @Service
 public class NewsService {
 
-    private static final String BBC_RSS_FEED = "http://feeds.bbci.co.uk/news/rss.xml";
+    private static final String BBC_RSS_FEED = "https://feeds.bbci.co.uk/news/rss.xml";
 
     public List<NewsItem> getTopNews() {
         List<NewsItem> newsItems = new ArrayList<>();
