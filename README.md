@@ -18,7 +18,8 @@ Go to **Settings > Secrets and variables > Actions** and add:
 - `key`: Your VPS login password (or SSH private key).
 
 ### 2. VPS Configuration (Required for App)
-You must manually create the config file on your VPS because it is ignored by Git.
+You must manually create the config file on your VPS because it is ignored by Git. This file is **backed up and restored** automatically during every deployment, so your secrets are safe.
+
 **Run this on your server:**
 
 ```bash
@@ -26,16 +27,19 @@ mkdir -p /var/www/html/NewsHub/src/main/resources/
 nano /var/www/html/NewsHub/src/main/resources/application.properties
 ```
 
-Paste this content:
+**Option A (Recommended - Secure):**
+Paste this content using a placeholder, then use environment variables:
 ```properties
 server.port=80
 gemini.api.key=${GEMINI_API_KEY}
 ```
+Then set the variable in your system: `echo 'export GEMINI_API_KEY="your_key"' >> ~/.bashrc`
 
-Then, set your API key in the system environment:
-```bash
-echo 'export GEMINI_API_KEY="AIzaSy...YOUR_KEY"' >> ~/.bashrc
-source ~/.bashrc
+**Option B (Simple):**
+Paste your real key directly into the file. You DO NOT need environment variables if you do this.
+```properties
+server.port=80
+gemini.api.key=AIzaSy_YOUR_ACTUAL_KEY_HERE
 ```
 
 ## Automated Workflow
