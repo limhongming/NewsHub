@@ -73,6 +73,9 @@ jobs:
           setsid java -jar app.jar > log.txt 2>&1 < /dev/null &
           
           # 5. Verify it started
-          sleep 5
+          sleep 10
+          echo "====== SERVER LOGS (Last 50 lines) ======"
+          tail -n 50 log.txt
+          echo "========================================="
           echo "Deployment script finished."
           exit 0
