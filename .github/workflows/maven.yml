@@ -49,6 +49,17 @@ jobs:
           git reset --hard origin/main
           
           # 4. Compile and Package on VPS
+          # Force set JAVA_HOME to ensure we use the installed Java 21
+          export JAVA_HOME=$(update-java-alternatives -l | grep java-1.21.0-openjdk | awk '{print $3}')
+          if [ -z "$JAVA_HOME" ]; then
+              # Fallback if grep fails
+              export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+          fi
+          export PATH=$JAVA_HOME/bin:$PATH
+          
+          echo "Using Java at: $JAVA_HOME"
+          java -version
+          
           mvn clean package -DskipTests
           
           # 5. Start with setsid
