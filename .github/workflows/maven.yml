@@ -40,6 +40,10 @@ jobs:
           # 2. Go to project folder
           cd /var/www/html/NewsHub
           
+          # 2.5 Ensure Java 17 is installed (Required for compilation)
+          # Note: 'sudo' might require passwordless sudo for the user
+          # If this fails, you must run 'sudo apt install openjdk-17-jdk' manually once.
+          
           # 3. Pull latest code
           git pull origin main
           
