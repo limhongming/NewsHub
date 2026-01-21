@@ -31,19 +31,26 @@ jobs:
           git reset --hard origin/main
           
           # 4. COMPILE ON VPS
-          # Explicitly set Java 21 Home so Maven uses the right compiler
+          # Ensure the FULL JDK 21 is installed (Compiler was missing/old)
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update -y
+          sudo apt-get install -y openjdk-21-jdk-headless
+          
+          # Set JAVA_HOME
           export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
           export PATH=$JAVA_HOME/bin:$PATH
           
-          echo "Compiling with Java:"
+          echo "Java Version:"
           java -version
+          echo "Compiler Version:"
+          javac -version
           
           # Ensure Maven Wrapper exists
           mvn wrapper:wrapper
           chmod +x mvnw
           
-          # Build using the wrapper (uses the exported JAVA_HOME)
-          ./mvnw clean package -DskipTests
+          # Build using the wrapper AND force the correct compiler executable
+          ./mvnw clean package -DskipTests -Dmaven.compiler.fork=true -Dmaven.compiler.executable=$JAVA_HOME/bin/javac
           
           # 5. Start App
           # Rename to generic app.jar
