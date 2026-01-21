@@ -26,9 +26,16 @@ jobs:
           # 2. Go to project folder
           cd /var/www/html/NewsHub
           
+          # 2.5 Backup Configuration (Crucial!)
+          cp src/main/resources/application.properties /tmp/application.properties.bak || echo "No config to backup."
+          
           # 3. Force Sync Code
           git fetch --all
           git reset --hard origin/main
+          
+          # 3.5 Restore Configuration
+          mkdir -p src/main/resources
+          cp /tmp/application.properties.bak src/main/resources/application.properties || echo "Failed to restore config!"
           
           # 4. COMPILE ON VPS
           # Ensure the FULL JDK 21 is installed (Compiler was missing/old)
