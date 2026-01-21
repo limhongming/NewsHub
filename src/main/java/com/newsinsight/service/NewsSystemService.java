@@ -12,23 +12,21 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Service
-public class GeminiService {
+public class NewsSystemService {
 
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    // Use gemini-2.5-flash as requested by user's latest setup
+    // Using Gemini 2.5 Flash model
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s";
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AnalysisResponse.AnalysisData analyzeText(String text) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
-            return new AnalysisResponse.AnalysisData("Gemini API Key is not configured.");
+            return new AnalysisResponse.AnalysisData("API Key is not configured.");
         }
 
         String prompt = """
@@ -69,7 +67,7 @@ public class GeminiService {
             }
         } catch (Exception e) {
             e.printStackTrace();
-            return new AnalysisResponse.AnalysisData("AI Analysis failed: " + e.getMessage());
+            return new AnalysisResponse.AnalysisData("Analysis failed: " + e.getMessage());
         }
     }
 

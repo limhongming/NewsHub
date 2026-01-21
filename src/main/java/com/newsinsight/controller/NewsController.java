@@ -3,7 +3,7 @@ package com.newsinsight.controller;
 import com.newsinsight.model.AnalysisRequest;
 import com.newsinsight.model.AnalysisResponse;
 import com.newsinsight.model.NewsItem;
-import com.newsinsight.service.GeminiService;
+import com.newsinsight.service.NewsSystemService;
 import com.newsinsight.service.NewsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,11 +15,11 @@ import java.util.List;
 public class NewsController {
 
     private final NewsService newsService;
-    private final GeminiService geminiService;
+    private final NewsSystemService newsSystemService;
 
-    public NewsController(NewsService newsService, GeminiService geminiService) {
+    public NewsController(NewsService newsService, NewsSystemService newsSystemService) {
         this.newsService = newsService;
-        this.geminiService = geminiService;
+        this.newsSystemService = newsSystemService;
     }
 
     @GetMapping("/news")
@@ -42,7 +42,7 @@ public class NewsController {
             }
 
             // 2. Analyze
-            AnalysisResponse.AnalysisData analysisData = geminiService.analyzeText(content);
+            AnalysisResponse.AnalysisData analysisData = newsSystemService.analyzeText(content);
             
             // 3. Return Combined Response
             return ResponseEntity.ok(new AnalysisResponse(analysisData, content));

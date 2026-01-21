@@ -2,7 +2,7 @@
 echo Initializing Git Repository...
 git init
 git branch -M main
-git remote add origin https://github.com/LHM69/NewsHub.git
+git remote add origin https://github.com/limhongming/NewsHub.git
 echo.
 echo Remote 'origin' added.
 echo.
