@@ -64,10 +64,6 @@ jobs:
           rm -f app.jar
           mv target/*.jar app.jar
           
-          # DIAGNOSTIC: Check if VPS can reach BBC
-          echo "Testing connection to BBC RSS..."
-          curl -I -m 5 http://feeds.bbci.co.uk/news/rss.xml || echo "❌ NETWORK ERROR: Cannot reach BBC Feed"
-          
           # Source bashrc to load env vars
           source ~/.bashrc
           
@@ -76,6 +72,10 @@ jobs:
           else
               echo "GEMINI_API_KEY found (length: ${#GEMINI_API_KEY})"
           fi
+          
+          # AGGRESSIVE KILL: Clear port 80 immediately before starting
+          echo "Clearing Port 80..."
+          sudo fuser -k -9 80/tcp || echo "Port 80 clear."
           
           # Start with setsid, explicitly passing the env var if needed
           # Using sudo -E to preserve env vars and allow Port 80 binding
