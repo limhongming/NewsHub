@@ -1,0 +1,6 @@
+# Gemini CLI Project Instructions
+
+- **Automatic Sync:** After completing any code modification or file operation, the agent MUST execute `.\git-sync.bat` to push changes to GitHub.
+- **Commit Message:** Use the standard message "Update NewsHub".
+- **Port Convention:** The application runs on Port 8080 (behind Nginx) or Port 80 (standalone). Current setup: Standalone Port 80.
+- **Environment:** Java 21 Spring Boot.
