@@ -62,8 +62,8 @@ jobs:
           
           # 6. Verify
           sleep 10
-          echo "====== SERVER LOGS (Last 50 lines) ======"
-          tail -n 50 log.txt
+          echo "====== SERVER LOGS (Last 100 lines) ======"
+          tail -n 100 log.txt
           echo "========================================="
           echo "Deployment script finished."
           exit 0
