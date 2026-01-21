@@ -54,20 +54,20 @@ jobs:
         password: ${{ secrets.key }}
         timeout: 10m
         script: |
-          # Stop the old server
-          pkill -f news-insight || echo "Old process stopped or not found."
+          # 1. Force kill anything running on Port 8080
+          fuser -k 8080/tcp || echo "Port 8080 was already free."
           
-          # Navigate to project folder
+          # 2. Go to project folder
           cd /var/www/html/NewsHub
           
-          # Move the new jar into place
-          mv *.jar app.jar
+          # 3. Rename new JAR to app.jar (Overwrite existing)
+          mv target/*.jar app.jar
           
-          # Load env vars and start (Ultimate Detach)
+          # 4. Start with setsid (Strongest detach method)
           source ~/.bashrc
-          nohup java -jar app.jar > log.txt 2>&1 < /dev/null &
+          setsid java -jar app.jar > log.txt 2>&1 < /dev/null &
           
-          # Wait a moment then exit cleanly
+          # 5. Verify it started
           sleep 5
-          echo "Deployment finished successfully."
+          echo "Deployment script finished."
           exit 0
