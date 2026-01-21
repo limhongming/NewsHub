@@ -8,9 +8,7 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
     - name: Set up JDK 17
@@ -21,3 +19,31 @@ jobs:
         cache: maven
     - name: Build with Maven
       run: mvn -B clean package -DskipTests --file pom.xml
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        script: |
+          # Stop the old server
+          pkill -f news-insight || true
+          
+          # Go to project folder
+          cd /var/www/html/NewsHub
+          
+          # Get latest code
+          git pull origin main
+          
+          # Rebuild
+          mvn clean package -DskipTests
+          
+          # Start new server (with system env vars loaded)
+          source ~/.bashrc
+          nohup mvn spring-boot:run > log.txt 2>&1 &
