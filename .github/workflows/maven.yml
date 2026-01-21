@@ -20,8 +20,8 @@ jobs:
         timeout: 30m
         command_timeout: 30m
         script: |
-          # 1. Force kill anything running on Port 8080
-          fuser -k 8080/tcp || echo "Port 8080 was already free."
+          # 1. Force kill anything running on Port 80
+          fuser -k 80/tcp || echo "Port 80 was already free."
           
           # 2. Go to project folder
           cd /var/www/html/NewsHub
@@ -58,7 +58,7 @@ jobs:
           mv target/*.jar app.jar
           
           source ~/.bashrc
-          setsid java -jar app.jar > log.txt 2>&1 < /dev/null &
+          sudo setsid java -jar app.jar > log.txt 2>&1 < /dev/null &
           
           # 6. Verify
           sleep 10
