@@ -32,8 +32,8 @@ jobs:
         username: ${{ secrets.username }}
         password: ${{ secrets.key }}
         script: |
-          # Stop the old server
-          pkill -f news-insight || true
+          # Stop the old server (Ignore exit code 143/1)
+          pkill -f news-insight || echo "Old process stopped or not found."
           
           # Go to project folder
           cd /var/www/html/NewsHub
