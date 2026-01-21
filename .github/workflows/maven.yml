@@ -74,7 +74,8 @@ jobs:
           fi
           
           # Start with setsid, explicitly passing the env var if needed
-          GEMINI_API_KEY=$GEMINI_API_KEY setsid java -jar app.jar > log.txt 2>&1 < /dev/null &
+          # Using sudo -E to preserve env vars and allow Port 80 binding
+          sudo -E setsid java -jar app.jar > log.txt 2>&1 < /dev/null &
           
           # 6. Verify
           sleep 10
