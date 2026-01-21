@@ -9,7 +9,7 @@ A Spring Boot based News Aggregator and AI Analyzer.
 - **Deployment:** GitHub Actions -> VPS (Port 80)
 
 ## 🔒 Security & Configuration
-This project uses **Environment Variables** for secrets. The `application.properties` file is git-ignored.
+This project uses **Environment Variables** for secrets. The `application.properties` file is git-ignored globally.
 
 ### 1. GitHub Secrets (Required for Pipeline)
 Go to **Settings > Secrets and variables > Actions** and add:
@@ -19,7 +19,7 @@ Go to **Settings > Secrets and variables > Actions** and add:
 
 ### 2. VPS Configuration (Required for App)
 You must manually create the config file on your VPS because it is ignored by Git.
-Run this on your server:
+**Run this on your server:**
 
 ```bash
 mkdir -p /var/www/html/NewsHub/src/main/resources/
