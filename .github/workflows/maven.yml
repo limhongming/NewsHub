@@ -64,6 +64,10 @@ jobs:
           rm -f app.jar
           mv target/*.jar app.jar
           
+          # DIAGNOSTIC: Check if VPS can reach BBC
+          echo "Testing connection to BBC RSS..."
+          curl -I -m 5 http://feeds.bbci.co.uk/news/rss.xml || echo "❌ NETWORK ERROR: Cannot reach BBC Feed"
+          
           # Source bashrc to load env vars
           source ~/.bashrc
           
