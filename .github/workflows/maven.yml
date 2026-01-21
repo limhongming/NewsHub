@@ -44,8 +44,9 @@ jobs:
           # Note: 'sudo' might require passwordless sudo for the user
           # If this fails, you must run 'sudo apt install openjdk-17-jdk' manually once.
           
-          # 3. Pull latest code
-          git pull origin main
+          # 3. Pull latest code (Force overwrite local changes)
+          git fetch --all
+          git reset --hard origin/main
           
           # 4. Compile and Package on VPS
           mvn clean package -DskipTests
