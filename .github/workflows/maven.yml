@@ -30,7 +30,7 @@ jobs:
       with:
         host: ${{ secrets.host }}
         username: ${{ secrets.username }}
-        key: ${{ secrets.key }}
+        password: ${{ secrets.key }}
         script: |
           # Stop the old server
           pkill -f news-insight || true
