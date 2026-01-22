@@ -59,24 +59,15 @@ public class NewsSystemService {
                 List<Map<String, Object>> modelsList = (List<Map<String, Object>>) response.getBody().get("models");
                 if (modelsList != null) {
                     List<GeminiModel> geminiModels = new ArrayList<>();
-                    
-                    // Always ensure flash-lite is at top for user selection
                     geminiModels.add(new GeminiModel("gemini-2.5-flash-lite", "v1beta", "Gemini 2.5 Flash-Lite", "Highest Volume (1000 RPD)", 1000000, 65535));
-                    
                     for (Map<String, Object> m : modelsList) {
                         String name = (String) m.get("name"); 
                         if (name != null && name.contains("gemini")) {
                             String shortName = name.replace("models/", "");
                             if (shortName.equals("gemini-2.5-flash-lite")) continue;
-                            
-                            geminiModels.add(new GeminiModel(
-                                shortName,
-                                (String) m.get("version"),
-                                (String) m.get("displayName"),
-                                (String) m.get("description"),
+                            geminiModels.add(new GeminiModel(shortName, (String) m.get("version"), (String) m.get("displayName"), (String) m.get("description"),
                                 m.get("inputTokenLimit") != null ? (int) m.get("inputTokenLimit") : 0,
-                                m.get("outputTokenLimit") != null ? (int) m.get("outputTokenLimit") : 0
-                            ));
+                                m.get("outputTokenLimit") != null ? (int) m.get("outputTokenLimit") : 0));
                         }
                     }
                     return geminiModels;
@@ -107,6 +98,16 @@ public class NewsSystemService {
             return parseJsonFromAI(result.text());
         } catch (Exception e) {
             return new AnalysisResponse.AnalysisData("Analysis failed: " + e.getMessage());
+        }
+    }
+
+    private AnalysisResponse.AnalysisData parseJsonFromAI(String rawText) {
+        try {
+            String jsonText = rawText.replace("```json", "").replace("```", "").trim();
+            return objectMapper.readValue(jsonText, AnalysisResponse.AnalysisData.class);
+        } catch (Exception e) {
+            System.err.println("Failed to parse JSON from AI: " + rawText);
+            return new AnalysisResponse.AnalysisData("Failed to parse AI response.");
         }
     }
 
