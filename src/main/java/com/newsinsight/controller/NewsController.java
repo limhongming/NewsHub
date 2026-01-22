@@ -4,6 +4,8 @@ import com.newsinsight.model.MergedNewsCluster;
 import com.newsinsight.model.NewsItem;
 import com.newsinsight.model.GeminiModel;
 import com.newsinsight.model.SnippetRequest;
+import com.newsinsight.model.AnalysisRequest;
+import com.newsinsight.model.AnalysisResponse;
 import com.newsinsight.service.NewsSystemService;
 import com.newsinsight.service.NewsService;
 import com.newsinsight.service.NewsCacheService;
