@@ -254,11 +254,24 @@
 
         function showStatusBar(tab, message, isProcessing) {
             const bar = document.getElementById(tab + '-status-bar');
-            bar.className = 'ai-status-bar';
-            bar.innerHTML = isProcessing 
-                ? `<div class="pulsating-dot"></div> <span>${message}</span>`
-                : `<span>${message}</span>`;
             bar.classList.remove('d-none');
+            
+            if (message.includes('Error') || message.includes('Failed')) {
+                // Error State
+                bar.className = 'alert alert-danger border-danger d-flex align-items-center mb-4';
+                bar.innerHTML = `
+                    <div class="me-2">⚠️</div>
+                    <div>
+                        <strong>Analysis Issue:</strong> ${message}
+                    </div>
+                `;
+            } else {
+                // Normal/Processing State
+                bar.className = 'ai-status-bar';
+                bar.innerHTML = isProcessing 
+                    ? `<div class="pulsating-dot"></div> <span>${message}</span>`
+                    : `<span>${message}</span>`;
+            }
         }
 
         function hideStatusBar(tab) {
