@@ -30,12 +30,14 @@ public class NewsSystemService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    // List of models to try in order of preference
+    // List of models to try in order of preference (Updated for 2026 availability)
     private static final List<String> FALLBACK_MODELS = List.of(
         "gemini-2.5-flash-lite",
         "gemini-2.5-flash",
-        "gemini-1.5-flash",
-        "gemini-1.5-pro"
+        "gemini-2.0-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.5-pro",
+        "gemini-2.0-pro-exp"
     );
 
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
@@ -59,12 +61,19 @@ public class NewsSystemService {
                 List<Map<String, Object>> modelsList = (List<Map<String, Object>>) response.getBody().get("models");
                 if (modelsList != null) {
                     List<GeminiModel> geminiModels = new ArrayList<>();
+                    // Explicitly add the 2.5 flash-lite at the top if not returned by API
+                    // (Sometimes new models don't show up in listModels immediately)
+                    geminiModels.add(new GeminiModel("gemini-2.5-flash-lite", "v1beta", "Gemini 2.5 Flash-Lite", "Optimized for massive scale", 1000000, 65535));
+                    
                     for (Map<String, Object> m : modelsList) {
-                        String name = (String) m.get("name"); // e.g. "models/gemini-1.5-flash"
-                        // Filter to show only likely compatible models (gemini)
+                        String name = (String) m.get("name"); 
                         if (name != null && name.contains("gemini")) {
+                            String shortName = name.replace("models/", "");
+                            // Avoid adding duplicate flash-lite
+                            if (shortName.equals("gemini-2.5-flash-lite")) continue;
+                            
                             geminiModels.add(new GeminiModel(
-                                name.replace("models/", ""), // Strip prefix for cleaner ID
+                                shortName,
                                 (String) m.get("version"),
                                 (String) m.get("displayName"),
                                 (String) m.get("description"),
@@ -79,7 +88,8 @@ public class NewsSystemService {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return Collections.emptyList();
+        // Fallback if API fails
+        return List.of(new GeminiModel("gemini-2.5-flash-lite", "v1beta", "Gemini 2.5 Flash-Lite", "High volume fallback", 1000000, 65535));
     }
 
     public AnalysisResponse.AnalysisData analyzeText(String text) {
@@ -100,7 +110,7 @@ public class NewsSystemService {
                     "impact_rating": 5, 
                     "urgency": "Medium" 
                 }
-                """.formatted(text.replace("\"", "\\")); 
+                """.formatted(text.replace("\"", "\\\"")); 
 
         try {
             String rawText = callGeminiApiWithFallback(prompt, null);
@@ -140,7 +150,6 @@ public class NewsSystemService {
             itemsText.append("  Snippet: ").append(item.summary()).append("\n\n");
         }
         
-        // Truncate to avoid payload limits (approx 30k chars is safe for Flash)
         String fullText = itemsText.toString();
         if (fullText.length() > 30000) {
             fullText = fullText.substring(0, 30000) + "...[TRUNCATED]";
@@ -211,12 +220,10 @@ public class NewsSystemService {
 
         Exception lastException = null;
         
-        // Create a list starting with the preferred model, then the others
         java.util.List<String> modelsToTry = new java.util.ArrayList<>();
         if (preferredModel != null && !preferredModel.isEmpty()) {
             modelsToTry.add(preferredModel);
         }
-        // Add defaults if not already present
         for (String m : FALLBACK_MODELS) {
             if (!modelsToTry.contains(m)) {
                 modelsToTry.add(m);
@@ -238,12 +245,10 @@ public class NewsSystemService {
                 }
             } catch (HttpClientErrorException e) {
                 System.err.println("Model " + model + " failed: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
-                // 404 might mean the model doesn't exist (e.g. user typo or deprecated), so we should try next
                 if (e.getStatusCode().value() == 429 || e.getStatusCode().value() == 503 || e.getStatusCode().value() == 404) {
                     lastException = e;
                     continue; 
                 } else {
-                    // Critical API Error (400, 401, etc) - Stop and report
                     throw new RuntimeException("Gemini API Error (" + model + "): " + e.getResponseBodyAsString());
                 }
             } catch (Exception e) {
@@ -280,7 +285,6 @@ public class NewsSystemService {
             List<Map<String, Object>> candidates = (List<Map<String, Object>>) responseBody.get("candidates");
             if (candidates != null && !candidates.isEmpty()) {
                 Map<String, Object> candidate = candidates.get(0);
-                // Check finish reason
                 String finishReason = (String) candidate.get("finishReason");
                 if ("SAFETY".equals(finishReason)) {
                     System.err.println("Gemini Safety Filter Triggered!");
