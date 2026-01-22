@@ -174,7 +174,7 @@
                         <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                         <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                     </select>
-                    <span class="input-group-text bg-dark border-secondary text-secondary" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Auto-Fallback Active: If your selected model hits a rate limit, the system will automatically try others to ensure you get results.">
+                    <span id="fallback-info" class="input-group-text bg-dark border-secondary text-secondary" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Auto-Fallback Active: If your selected model hits a rate limit, the system will automatically try others to ensure you get results.">
                         ℹ️
                     </span>
                 </div>
@@ -225,10 +225,10 @@
                     <div class="row">
                         <div class="col-lg-4 border-end border-secondary">
                             <div class="d-flex align-items-center mb-4 justify-content-between">
-                                <div id="urgency-badge" class="impact-badge bg-danger text-white">CRITICAL</div>
+                                <div id="urgency-badge" class="impact-badge bg-secondary text-white">PENDING</div>
                                 <div class="text-center">
                                     <div class="small text-muted mb-1">IMPACT RATING</div>
-                                    <div id="impact-score" class="score-box">9.5</div>
+                                    <div id="impact-score" class="score-box">-</div>
                                 </div>
                             </div>
                             <h6 class="section-title">AI Summary</h6>
@@ -264,6 +264,12 @@
     <script>
         let currentTab = 'bbc';
 
+        // --- Utils ---
+        function normalizeUrl(url) {
+            if (!url) return '';
+            return url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+        }
+
         // --- Render Helpers ---
 
         function showStatusBar(tab, message, isProcessing) {
@@ -271,16 +277,9 @@
             bar.classList.remove('d-none');
             
             if (message.includes('Error') || message.includes('Failed')) {
-                // Error State
                 bar.className = 'alert alert-danger border-danger d-flex align-items-center mb-4';
-                bar.innerHTML = `
-                    <div class="me-2">⚠️</div>
-                    <div>
-                        <strong>Analysis Issue:</strong> ${message}
-                    </div>
-                `;
+                bar.innerHTML = `<div class="me-2">⚠️</div><div><strong>Analysis Issue:</strong> ${message}</div>`;
             } else {
-                // Normal/Processing State
                 bar.className = 'ai-status-bar';
                 bar.innerHTML = isProcessing 
                     ? `<div class="pulsating-dot"></div> <span>${message}</span>`
@@ -296,16 +295,16 @@
         function renderRawItems(container, items, isBBC) {
             container.innerHTML = '';
             if (!items || items.length === 0) {
-                container.innerHTML = '<div class="col-12 text-center text-muted">No raw news items found.</div>';
+                container.innerHTML = '<div class="col-12 text-center text-muted">No news items found. Check RSS sources.</div>';
                 return;
             }
             items.forEach((item, index) => {
                 const card = document.createElement('div');
                 card.className = 'col-md-6 col-lg-4';
-                // Using data-link for matching back later
                 card.dataset.link = item.link;
+                card.dataset.normalizedLink = normalizeUrl(item.link);
                 
-                const summary = item.summary || 'Click below to analyze.';
+                const summary = item.summary || 'Fetching summary...';
                 
                 card.innerHTML = `
                     <div class="card news-card">
@@ -314,9 +313,8 @@
                             <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>
                             <p class="card-text text-secondary flex-grow-1 small">${summary}</p>
                             
-                            <!-- In-Card AI Placeholder -->
-                            <div class="ai-placeholder" id="ai-box-${index}">
-                                <div class="d-flex align-items-center">
+                            <div class="ai-placeholder mt-3">
+                                <div class="d-flex align-items-center loading-label">
                                     <div class="spinner-grow spinner-grow-sm text-warning me-2" role="status"></div>
                                     <span>AI Analysis: Still Loading...</span>
                                 </div>
@@ -336,32 +334,25 @@
 
         function updateCardsWithClusters(container, clusters, isBBC) {
             if (!clusters || clusters.length === 0) {
-                // Do NOT clear container. Just return.
+                const loaders = container.querySelectorAll('.loading-label');
+                loaders.forEach(l => l.innerHTML = '<span class="text-muted">AI Analysis: Not Available (API limit or error)</span>');
                 return;
             }
 
             if (!isBBC) {
-                // CNN Strategy: Clustering transforms the list structure, so we must replace.
                 container.innerHTML = '';
                 clusters.forEach((cluster, index) => {
                     renderSingleClusterCard(container, cluster, index);
                 });
             } else {
-                // BBC Strategy: Update in place
                 clusters.forEach((cluster) => {
-                    // Try to find the matching raw card
-                    // In unclustered mode, related_links[0] is the original link
                     if (cluster.related_links && cluster.related_links.length > 0) {
-                        const originalLink = cluster.related_links[0];
-                        // Find div with data-link
-                        // Note: complex querySelector might fail with special chars in URL, iterate instead
+                        const originalLinkNorm = normalizeUrl(cluster.related_links[0]);
                         const cards = container.children;
                         for (let cardWrapper of cards) {
-                            if (cardWrapper.dataset.link === originalLink) {
-                                // Found match! Update the placeholder.
+                            if (cardWrapper.dataset.normalizedLink === originalLinkNorm) {
                                 const aiBox = cardWrapper.querySelector('.ai-placeholder');
                                 if (aiBox) {
-                                    // Replace placeholder with analysis
                                     const rating = cluster.impact_rating || 'N/A';
                                     let ratingClass = 'text-secondary';
                                     if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
@@ -375,14 +366,10 @@
                                     aiBox.innerHTML = `
                                         <h6 class="text-warning small text-uppercase mb-1">AI Summary</h6>
                                         <p class="text-white small">${cluster.summary}</p>
-                                        
                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                             <span class="badge bg-dark border border-secondary text-secondary">Impact: <span class="${ratingClass}">${rating}/10</span></span>
-                                            <button class="btn btn-sm btn-link text-warning p-0 text-decoration-none" style="font-size: 0.8rem" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">
-                                                Show Impacts ▼
-                                            </button>
+                                            <button class="btn btn-sm btn-link text-warning p-0 text-decoration-none" style="font-size: 0.8rem" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">Show Impacts ▼</button>
                                         </div>
-
                                         <div class="collapse" id="${uniqueId}">
                                             <div class="card card-body bg-dark border border-secondary p-2">
                                                 <p class="mb-1 small"><strong class="text-info">Economic:</strong> ${cluster.economic_impact}</p>
@@ -396,6 +383,9 @@
                         }
                     }
                 });
+                
+                const remainingLoaders = container.querySelectorAll('.loading-label');
+                remainingLoaders.forEach(l => l.innerHTML = '<span class="text-muted">AI Analysis: No specific analysis found.</span>');
             }
         }
 
@@ -403,7 +393,6 @@
             const card = document.createElement('div');
             card.className = 'col-md-12 fade-in'; 
             const uniqueId = 'details-' + index + '-' + Math.random().toString(36).substr(2, 9);
-            
             let linksHtml = '<div class="link-list">';
             if(cluster.related_links) {
                 cluster.related_links.forEach(link => {
@@ -422,12 +411,9 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between">
                             <h3 class="card-title text-warning">${cluster.topic}</h3>
-                            <span class="badge bg-dark border border-secondary align-self-start p-2">
-                                Impact: <span class="${ratingClass}">${rating}/10</span>
-                            </span>
+                            <span class="badge bg-dark border border-secondary align-self-start p-2">Impact: <span class="${ratingClass}">${rating}/10</span></span>
                         </div>
                         <hr style="border-color: #555;">
-                        
                         <div class="row">
                             <div class="col-md-8">
                                 <h6 class="text-secondary text-uppercase small">Summary</h6>
@@ -438,11 +424,8 @@
                                 <p class="text-info">${cluster.economic_impact}</p>
                             </div>
                         </div>
-                        
                         <div class="mt-3">
-                            <button class="btn btn-outline-warning btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}" aria-expanded="false">
-                                ▼ View Potential Impacts & Predictions
-                            </button>
+                            <button class="btn btn-outline-warning btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">▼ View Potential Impacts & Predictions</button>
                             <div class="collapse mt-3" id="${uniqueId}">
                                 <div class="card card-body bg-dark border-secondary">
                                     <div class="row">
@@ -461,68 +444,56 @@
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
             `;
             container.appendChild(card);
         }
 
-        // --- Loading Logic ---
-
         async function loadFeed(tabName, rawEndpoint, aiEndpoint) {
             const container = document.getElementById(tabName + '-container');
             const lang = document.getElementById('lang-select').value;
             const model = document.getElementById('model-select').value;
             
-            // 1. Show Loading State with Raw Items
             showStatusBar(tabName, 'Fetching latest headlines...', true);
 
             try {
-                // 2. Fetch Raw News
                 const rawResponse = await fetch(rawEndpoint);
                 const rawItems = await rawResponse.json();
-                
-                // 3. Render Raw Immediately (Analysis 'Waiting' state included)
-                // Determine if this tab is BBC (Unclustered) or CNN (Clustered) for initial render hint
                 const isBBC = tabName === 'bbc';
                 renderRawItems(container, rawItems, isBBC);
                 
-                // 4. Trigger AI Analysis
                 showStatusBar(tabName, `AI (${model}) is analyzing & translating to ${lang}...`, true);
                 
                 const aiResponse = await fetch(`${aiEndpoint}?lang=${lang}&model=${model}`);
                 const clusters = await aiResponse.json();
 
-                // 5. Update UI with AI results
-                // If it's CNN, this will replace the list. If BBC, it updates in place.
                 updateCardsWithClusters(container, clusters, isBBC);
                 
                 if (clusters.length > 0) {
-                    showStatusBar(tabName, `Analysis Complete. (${clusters.length} topics found)`, false);
+                    const firstTopic = clusters[0].topic;
+                    if (firstTopic.includes('Error')) {
+                        showStatusBar(tabName, firstTopic + ': ' + clusters[0].summary, false);
+                    } else {
+                        showStatusBar(tabName, `Analysis Complete. (${clusters.length} topics found)`, false);
+                    }
                 } else {
-                    // This happens if AI returns empty list (e.g. Safety filter or error handled by backend returning empty)
-                    showStatusBar(tabName, 'Analysis returned no results (Check logs/limits).', false);
+                    showStatusBar(tabName, 'Analysis returned no results.', false);
+                    updateCardsWithClusters(container, [], isBBC); 
                 }
 
             } catch (error) {
                 console.error(error);
                 showStatusBar(tabName, 'Error: ' + error.message, false);
-                // CRITICAL: We do NOT clear container here. Raw news remains visible.
+                updateCardsWithClusters(container, [], isBBC); 
             }
         }
 
-        function loadBBCMerged() {
-            loadFeed('bbc', '/api/news', '/api/news/bbc/merged');
-        }
-
-        function loadCNNMerged() {
-            loadFeed('cnn', '/api/news/cnn', '/api/news/merged');
-        }
+        function loadBBCMerged() { loadFeed('bbc', '/api/news', '/api/news/bbc/merged'); }
+        function loadCNNMerged() { loadFeed('cnn', '/api/news/cnn', '/api/news/merged'); }
 
         function switchTab(tab) {
             currentTab = tab;
-            // Always reload to get fresh "live" feel, or check if empty
             if (tab === 'bbc') loadBBCMerged();
             if (tab === 'cnn') loadCNNMerged();
         }
@@ -532,12 +503,9 @@
             else loadCNNMerged();
         }
 
-        // --- Modal Logic ---
         async function openAnalysisModal(title, url) {
             const loader = document.getElementById('global-loader');
             const modalElement = new bootstrap.Modal(document.getElementById('analysisModal'));
-            
-            // UI Refs
             const titleEl = document.getElementById('modal-title');
             const urgencyEl = document.getElementById('urgency-badge');
             const scoreEl = document.getElementById('impact-score');
@@ -547,7 +515,6 @@
             const articleEl = document.getElementById('article-text');
             const linkEl = document.getElementById('original-link');
 
-            // Reset
             titleEl.innerText = title;
             articleEl.innerText = "Fetching content...";
             summaryEl.innerText = "Analyzing...";
@@ -575,11 +542,9 @@
                     worldEl.innerText = ai.global_impact || "N/A";
                     scoreEl.innerText = ai.impact_rating || "?";
                     articleEl.innerText = data.full_text || "No text.";
-                    
                     const urgency = (ai.urgency || "Unknown").toString();
                     urgencyEl.innerText = urgency.toUpperCase();
                     urgencyEl.className = "impact-badge";
-                    
                     const urg = urgency.toLowerCase();
                     if (urg.includes('high') || urg.includes('critical')) urgencyEl.classList.add('bg-danger', 'text-white');
                     else if (urg.includes('medium')) urgencyEl.classList.add('bg-warning', 'text-dark');
@@ -596,59 +561,54 @@
             }
         }
 
-        // --- Models Logic ---
         async function loadModels() {
             try {
                 const response = await fetch('/api/models');
                 if (!response.ok) throw new Error("Failed to load models");
-                
                 const models = await response.json();
                 const select = document.getElementById('model-select');
-                select.innerHTML = ''; // Clear hardcoded options
+                select.innerHTML = '';
                 
                 if (models.length === 0) {
                     const opt = document.createElement('option');
                     opt.text = "Default (Gemini 2.5 Flash)";
                     opt.value = "gemini-2.5-flash";
                     select.add(opt);
-                    return;
+                } else {
+                    models.sort((a, b) => {
+                        if (a.name.includes('flash') && !b.name.includes('flash')) return -1;
+                        if (!a.name.includes('flash') && b.name.includes('flash')) return 1;
+                        return a.name.localeCompare(b.name);
+                    });
+                    models.forEach(model => {
+                        const opt = document.createElement('option');
+                        opt.value = model.name;
+                        opt.text = model.displayName + " (" + model.version + ")";
+                        if (model.name === 'gemini-2.5-flash-lite') opt.selected = true;
+                        else if (model.name === 'gemini-2.5-flash' && !models.find(m => m.name === 'gemini-2.5-flash-lite')) opt.selected = true;
+                        select.add(opt);
+                    });
                 }
-
-                // Sort: put flash models first as they are faster
-                models.sort((a, b) => {
-                    if (a.name.includes('flash') && !b.name.includes('flash')) return -1;
-                    if (!a.name.includes('flash') && b.name.includes('flash')) return 1;
-                    return a.name.localeCompare(b.name);
-                });
-
-                models.forEach(model => {
-                    const opt = document.createElement('option');
-                    opt.value = model.name;
-                    opt.text = model.displayName + " (" + model.version + ")";
-                    // Pre-select 2.5-flash-lite if available, else 2.5-flash
-                    if (model.name === 'gemini-2.5-flash-lite') opt.selected = true;
-                    else if (model.name === 'gemini-2.5-flash' && !models.find(m => m.name === 'gemini-2.5-flash-lite')) opt.selected = true;
-                    select.add(opt);
-                });
+                initTooltips();
             } catch (e) {
                 console.error("Could not load models:", e);
-                // Keep hardcoded defaults if API fails
             }
         }
 
-        // Init
-        window.onload = function() {
-            loadModels(); // Load models first
-            loadBBCMerged();
-            // Initialize Tooltips
+        function initTooltips() {
             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
                 return new bootstrap.Tooltip(tooltipTriggerEl)
-            })
+            });
+        }
+
+        window.onload = function() {
+            loadModels();
+            loadBBCMerged();
         };
     </script>
     <footer class="text-center mt-5 mb-4 text-secondary small">
-        NewsHub v1.7.0 | Per-Card Status & Robust Fallback
+        NewsHub v1.7.1 | Robust Link Matching & Status Logic
     </footer>
 </body>
 </html>
