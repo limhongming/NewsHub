@@ -1,7 +1,10 @@
 package com.newsinsight.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.newsinsight.model.AnalysisResponse;
+import com.newsinsight.model.MergedNewsCluster;
+import com.newsinsight.model.NewsItem;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
@@ -10,8 +13,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class NewsSystemService {
@@ -82,20 +87,73 @@ public class NewsSystemService {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private String extractTextFromResponse(Map<String, Object> responseBody) {
+    public List<MergedNewsCluster> processAndClusterNews(List<NewsItem> items, String language) {
+        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
+            return Collections.emptyList();
+        }
+
+        StringBuilder itemsText = new StringBuilder();
+        for (NewsItem item : items) {
+            itemsText.append("- Title: ").append(item.title()).append("\n");
+            itemsText.append("  Link: ").append(item.link()).append("\n");
+            itemsText.append("  Snippet: ").append(item.summary()).append("\n\n");
+        }
+
+        String prompt = """
+                Analyze the following news items. Group them into clusters based on shared events or related incidents (e.g. "incidents after this news").
+                
+                %s
+                
+                For each cluster, provide:
+                1. "topic": Main headline for the cluster.
+                2. "summary": A combined summary of the event.
+                3. "economic_impact": Potential economic impacts.
+                4. "related_links": A list of the original links that belong to this cluster.
+                
+                Translate the "topic", "summary", and "economic_impact" to: %s
+                
+                Return ONLY a JSON Array of objects (no markdown):
+                [
+                  {
+                    "topic": "...",
+                    "summary": "...",
+                    "economic_impact": "...",
+                    "related_links": ["...", "..."]
+                  }
+                ]
+                """.formatted(itemsText.toString(), language);
+
+        // Construct Request Body
+        Map<String, Object> part = Map.of("text", prompt);
+        Map<String, Object> content = Map.of("parts", List.of(part));
+        Map<String, Object> requestBody = Map.of("contents", List.of(content));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
         try {
-            List<Map<String, Object>> candidates = (List<Map<String, Object>>) responseBody.get("candidates");
-            if (candidates != null && !candidates.isEmpty()) {
-                Map<String, Object> content = (Map<String, Object>) candidates.get(0).get("content");
-                List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
-                if (parts != null && !parts.isEmpty()) {
-                    return (String) parts.get(0).get("text");
-                }
+            String url = String.format(API_URL_TEMPLATE, apiKey);
+            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+            
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                String rawText = extractTextFromResponse(response.getBody());
+                return parseClusterJsonFromAI(rawText);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return "{}";
+        return Collections.emptyList();
+    }
+
+    private List<MergedNewsCluster> parseClusterJsonFromAI(String rawText) {
+        try {
+            String jsonText = rawText.replace("```json", "").replace("```", "").trim();
+            return objectMapper.readValue(jsonText, new TypeReference<List<MergedNewsCluster>>(){});
+        } catch (Exception e) {
+            System.err.println("Failed to parse Cluster JSON: " + rawText);
+            return Collections.emptyList();
+        }
     }
 }

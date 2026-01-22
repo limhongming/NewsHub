@@ -2,6 +2,7 @@ package com.newsinsight.controller;
 
 import com.newsinsight.model.AnalysisRequest;
 import com.newsinsight.model.AnalysisResponse;
+import com.newsinsight.model.MergedNewsCluster;
 import com.newsinsight.model.NewsItem;
 import com.newsinsight.service.NewsSystemService;
 import com.newsinsight.service.NewsService;
@@ -25,6 +26,12 @@ public class NewsController {
     @GetMapping("/news")
     public List<NewsItem> getNews() {
         return newsService.getTopNews();
+    }
+
+    @GetMapping("/news/merged")
+    public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang) {
+        List<NewsItem> cnnNews = newsService.getCNNNews();
+        return newsSystemService.processAndClusterNews(cnnNews, lang);
     }
 
     @PostMapping("/analyze")
