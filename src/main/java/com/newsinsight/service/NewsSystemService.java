@@ -9,6 +9,7 @@ import com.newsinsight.model.MergedNewsCluster;
 import com.newsinsight.model.NewsItem;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -38,7 +39,6 @@ public class NewsSystemService {
             return new AnalysisResponse.AnalysisData("API Key is not configured.");
         }
         
-        // ... (analyzeText implementation remains same as prompt is simple) ...
         String prompt = """
                 Analyze the following news article text.
                 
@@ -54,14 +54,12 @@ public class NewsSystemService {
                 }
                 """.formatted(text.replace("\"", "\\\"")); 
 
-        // Construct Request Body
         Map<String, Object> part = Map.of("text", prompt);
         Map<String, Object> content = Map.of("parts", List.of(part));
         Map<String, Object> requestBody = Map.of("contents", List.of(content));
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
         try {
@@ -71,8 +69,7 @@ public class NewsSystemService {
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 String rawText = extractTextFromResponse(response.getBody());
                 return parseJsonFromAI(rawText);
-            }
- else {
+            } else {
                 return new AnalysisResponse.AnalysisData("Error: " + response.getStatusCode());
             }
         } catch (Exception e) {
@@ -93,7 +90,7 @@ public class NewsSystemService {
 
     public List<MergedNewsCluster> processAndClusterNews(List<NewsItem> items, String language, boolean shouldCluster) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
-            return Collections.emptyList();
+             return List.of(new MergedNewsCluster("API Key Missing", "Please configure gemini.api.key in application.properties", "N/A", "N/A", "0", "N/A", Collections.emptyList()));
         }
 
         List<NewsItem> validItems = items.stream()
@@ -101,13 +98,7 @@ public class NewsSystemService {
                 .collect(Collectors.toList());
 
         if (validItems.isEmpty()) {
-            return List.of(new MergedNewsCluster(
-                "No Content to Analyze",
-                "The news feed returned no valid articles to analyze. Please try again later.",
-                "N/A",
-                "N/A", "0", "N/A",
-                Collections.emptyList()
-            ));
+            return List.of(new MergedNewsCluster("No Content to Analyze", "The news feed returned no valid articles to analyze.", "N/A", "N/A", "0", "N/A", Collections.emptyList()));
         }
 
         StringBuilder itemsText = new StringBuilder();
@@ -115,6 +106,12 @@ public class NewsSystemService {
             itemsText.append("- Title: ").append(item.title()).append("\n");
             itemsText.append("  Link: ").append(item.link()).append("\n");
             itemsText.append("  Snippet: ").append(item.summary()).append("\n\n");
+        }
+        
+        // Truncate to avoid payload limits (approx 30k chars is safe for Flash)
+        String fullText = itemsText.toString();
+        if (fullText.length() > 30000) {
+            fullText = fullText.substring(0, 30000) + "...[TRUNCATED]";
         }
 
         String clusteringInstruction = shouldCluster 
@@ -136,24 +133,33 @@ public class NewsSystemService {
                 [
                   {
                     "topic": "Translated Headline",
-                    "summary": "Translated detailed summary of the event group.",
+                    "summary": "Translated detailed summary.",
                     "economic_impact": "Translated economic analysis.",
                     "global_impact": "Translated geopolitical/global impact.",
                     "impact_rating": "8",
-                    "what_next": "Translated prediction of what could happen next.",
+                    "what_next": "Translated prediction.",
                     "related_links": ["url1", "url2"]
                   }
                 ]
-                """.formatted(clusteringInstruction, language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, itemsText.toString());
+                """.formatted(clusteringInstruction, language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, fullText);
 
-        // Construct Request Body
+        // Safety Settings to BLOCK_NONE
+        List<Map<String, String>> safetySettings = List.of(
+            Map.of("category", "HARM_CATEGORY_HARASSMENT", "threshold", "BLOCK_NONE"),
+            Map.of("category", "HARM_CATEGORY_HATE_SPEECH", "threshold", "BLOCK_NONE"),
+            Map.of("category", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold", "BLOCK_NONE"),
+            Map.of("category", "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold", "BLOCK_NONE")
+        );
+
         Map<String, Object> part = Map.of("text", prompt);
         Map<String, Object> content = Map.of("parts", List.of(part));
-        Map<String, Object> requestBody = Map.of("contents", List.of(content));
+        Map<String, Object> requestBody = Map.of(
+            "contents", List.of(content),
+            "safetySettings", safetySettings
+        );
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
         try {
@@ -162,11 +168,15 @@ public class NewsSystemService {
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 String rawText = extractTextFromResponse(response.getBody());
-                System.out.println("DEBUG: AI Cluster Response: " + rawText); // Log response
+                System.out.println("DEBUG: AI Cluster Response: " + rawText);
                 return parseClusterJsonFromAI(rawText);
             }
+        } catch (HttpClientErrorException e) {
+             System.err.println("Gemini API Error: " + e.getResponseBodyAsString());
+             return List.of(new MergedNewsCluster("AI API Error", "Error from Gemini: " + e.getStatusCode() + " - " + e.getResponseBodyAsString(), "N/A", "N/A", "0", "N/A", Collections.emptyList()));
         } catch (Exception e) {
             e.printStackTrace();
+            return List.of(new MergedNewsCluster("System Error", "Analysis Failed: " + e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList()));
         }
         return Collections.emptyList();
     }
