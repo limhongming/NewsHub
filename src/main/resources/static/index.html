@@ -541,8 +541,9 @@
                     const opt = document.createElement('option');
                     opt.value = model.name;
                     opt.text = model.displayName + " (" + model.version + ")";
-                    // Pre-select 2.5-flash if available, else 1.5-flash
-                    if (model.name === 'gemini-2.5-flash') opt.selected = true;
+                    // Pre-select 2.5-flash-lite if available, else 2.5-flash
+                    if (model.name === 'gemini-2.5-flash-lite') opt.selected = true;
+                    else if (model.name === 'gemini-2.5-flash' && !models.find(m => m.name === 'gemini-2.5-flash-lite')) opt.selected = true;
                     select.add(opt);
                 });
             } catch (e) {

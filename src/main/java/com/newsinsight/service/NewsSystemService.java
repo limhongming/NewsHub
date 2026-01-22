@@ -32,6 +32,7 @@ public class NewsSystemService {
 
     // List of models to try in order of preference
     private static final List<String> FALLBACK_MODELS = List.of(
+        "gemini-2.5-flash-lite",
         "gemini-2.5-flash",
         "gemini-1.5-flash",
         "gemini-1.5-pro"
