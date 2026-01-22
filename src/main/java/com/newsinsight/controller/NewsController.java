@@ -4,6 +4,7 @@ import com.newsinsight.model.AnalysisRequest;
 import com.newsinsight.model.AnalysisResponse;
 import com.newsinsight.model.MergedNewsCluster;
 import com.newsinsight.model.NewsItem;
+import com.newsinsight.model.GeminiModel;
 import com.newsinsight.service.NewsSystemService;
 import com.newsinsight.service.NewsService;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,11 @@ public class NewsController {
     @GetMapping("/news")
     public List<NewsItem> getNews() {
         return newsService.getTopNews();
+    }
+
+    @GetMapping("/models")
+    public List<GeminiModel> getModels() {
+        return newsSystemService.listAvailableModels();
     }
 
     @GetMapping("/news/merged")

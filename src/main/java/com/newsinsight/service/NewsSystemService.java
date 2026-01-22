@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.newsinsight.model.AnalysisResponse;
+import com.newsinsight.model.GeminiModel;
 import com.newsinsight.model.MergedNewsCluster;
 import com.newsinsight.model.NewsItem;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,9 +14,11 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -35,11 +38,48 @@ public class NewsSystemService {
     );
 
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
-    
+    private static final String MODELS_API_URL = "https://generativelanguage.googleapis.com/v1beta/models?key=%s";
+
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+
+    public List<GeminiModel> listAvailableModels() {
+        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
+            return Collections.emptyList();
+        }
+
+        try {
+            String url = String.format(MODELS_API_URL, apiKey);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, null, Map.class);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                List<Map<String, Object>> modelsList = (List<Map<String, Object>>) response.getBody().get("models");
+                if (modelsList != null) {
+                    List<GeminiModel> geminiModels = new ArrayList<>();
+                    for (Map<String, Object> m : modelsList) {
+                        String name = (String) m.get("name"); // e.g. "models/gemini-1.5-flash"
+                        // Filter to show only likely compatible models (gemini)
+                        if (name != null && name.contains("gemini")) {
+                            geminiModels.add(new GeminiModel(
+                                name.replace("models/", ""), // Strip prefix for cleaner ID
+                                (String) m.get("version"),
+                                (String) m.get("displayName"),
+                                (String) m.get("description"),
+                                m.get("inputTokenLimit") != null ? (int) m.get("inputTokenLimit") : 0,
+                                m.get("outputTokenLimit") != null ? (int) m.get("outputTokenLimit") : 0
+                            ));
+                        }
+                    }
+                    return geminiModels;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return Collections.emptyList();
+    }
 
     public AnalysisResponse.AnalysisData analyzeText(String text) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
@@ -59,7 +99,7 @@ public class NewsSystemService {
                     "impact_rating": 5, 
                     "urgency": "Medium" 
                 }
-                """.formatted(text.replace("\"", "\\\"")); 
+                """.formatted(text.replace("\"", "\\")); 
 
         try {
             String rawText = callGeminiApiWithFallback(prompt, null);

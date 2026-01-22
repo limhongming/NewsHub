@@ -512,8 +512,48 @@
             }
         }
 
+        // --- Models Logic ---
+        async function loadModels() {
+            try {
+                const response = await fetch('/api/models');
+                if (!response.ok) throw new Error("Failed to load models");
+                
+                const models = await response.json();
+                const select = document.getElementById('model-select');
+                select.innerHTML = ''; // Clear hardcoded options
+                
+                if (models.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.text = "Default (Gemini 2.5 Flash)";
+                    opt.value = "gemini-2.5-flash";
+                    select.add(opt);
+                    return;
+                }
+
+                // Sort: put flash models first as they are faster
+                models.sort((a, b) => {
+                    if (a.name.includes('flash') && !b.name.includes('flash')) return -1;
+                    if (!a.name.includes('flash') && b.name.includes('flash')) return 1;
+                    return a.name.localeCompare(b.name);
+                });
+
+                models.forEach(model => {
+                    const opt = document.createElement('option');
+                    opt.value = model.name;
+                    opt.text = model.displayName + " (" + model.version + ")";
+                    // Pre-select 2.5-flash if available, else 1.5-flash
+                    if (model.name === 'gemini-2.5-flash') opt.selected = true;
+                    select.add(opt);
+                });
+            } catch (e) {
+                console.error("Could not load models:", e);
+                // Keep hardcoded defaults if API fails
+            }
+        }
+
         // Init
         window.onload = function() {
+            loadModels(); // Load models first
             loadBBCMerged();
             // Initialize Tooltips
             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
@@ -523,7 +563,7 @@
         };
     </script>
     <footer class="text-center mt-5 mb-4 text-secondary small">
-        NewsHub v1.5.1 | User-Selectable AI Models & Auto-Fallback
+        NewsHub v1.6.0 | Dynamic Model List
     </footer>
 </body>
 </html>
