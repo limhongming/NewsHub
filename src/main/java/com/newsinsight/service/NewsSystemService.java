@@ -27,8 +27,15 @@ public class NewsSystemService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    // Using Gemini 2.5 Flash model
-    private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s";
+    // List of models to try in order of preference
+    private static final List<String> FALLBACK_MODELS = List.of(
+        "gemini-2.5-flash",
+        "gemini-1.5-flash",
+        "gemini-1.5-pro"
+    );
+
+    private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
+    
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
@@ -54,26 +61,10 @@ public class NewsSystemService {
                 }
                 """.formatted(text.replace("\"", "\\\"")); 
 
-        Map<String, Object> part = Map.of("text", prompt);
-        Map<String, Object> content = Map.of("parts", List.of(part));
-        Map<String, Object> requestBody = Map.of("contents", List.of(content));
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
         try {
-            String url = String.format(API_URL_TEMPLATE, apiKey);
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                String rawText = extractTextFromResponse(response.getBody());
-                return parseJsonFromAI(rawText);
-            } else {
-                return new AnalysisResponse.AnalysisData("Error: " + response.getStatusCode());
-            }
+            String rawText = callGeminiApiWithFallback(prompt);
+            return parseJsonFromAI(rawText);
         } catch (Exception e) {
-            e.printStackTrace();
             return new AnalysisResponse.AnalysisData("Analysis failed: " + e.getMessage());
         }
     }
@@ -108,7 +99,6 @@ public class NewsSystemService {
             itemsText.append("  Snippet: ").append(item.summary()).append("\n\n");
         }
         
-        // Truncate to avoid payload limits (approx 30k chars is safe for Flash)
         String fullText = itemsText.toString();
         if (fullText.length() > 30000) {
             fullText = fullText.substring(0, 30000) + "...[TRUNCATED]";
@@ -143,7 +133,22 @@ public class NewsSystemService {
                 ]
                 """.formatted(clusteringInstruction, language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, fullText);
 
-        // Safety Settings to BLOCK_NONE
+        try {
+            String rawText = callGeminiApiWithFallback(prompt);
+            System.out.println("DEBUG: AI Cluster Response: " + rawText);
+            return parseClusterJsonFromAI(rawText);
+        } catch (Exception e) {
+            e.printStackTrace();
+            String errorMessage = e.getMessage();
+            if (e instanceof HttpClientErrorException) {
+                errorMessage = ((HttpClientErrorException) e).getResponseBodyAsString();
+            }
+            return List.of(new MergedNewsCluster("System Error", "Analysis Failed: " + errorMessage, "N/A", "N/A", "0", "N/A", Collections.emptyList()));
+        }
+    }
+
+    private String callGeminiApiWithFallback(String prompt) {
+        // Safety Settings
         List<Map<String, String>> safetySettings = List.of(
             Map.of("category", "HARM_CATEGORY_HARASSMENT", "threshold", "BLOCK_NONE"),
             Map.of("category", "HARM_CATEGORY_HATE_SPEECH", "threshold", "BLOCK_NONE"),
@@ -162,23 +167,34 @@ public class NewsSystemService {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
-        try {
-            String url = String.format(API_URL_TEMPLATE, apiKey);
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                String rawText = extractTextFromResponse(response.getBody());
-                System.out.println("DEBUG: AI Cluster Response: " + rawText);
-                return parseClusterJsonFromAI(rawText);
+        Exception lastException = null;
+
+        for (String model : FALLBACK_MODELS) {
+            try {
+                System.out.println("Trying Gemini Model: " + model);
+                String url = String.format(API_URL_TEMPLATE, model, apiKey);
+                ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+                
+                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                    return extractTextFromResponse(response.getBody());
+                }
+            } catch (HttpClientErrorException e) {
+                System.err.println("Model " + model + " failed: " + e.getStatusCode());
+                if (e.getStatusCode().value() == 429 || e.getStatusCode().value() == 503) {
+                    // Quota exceeded or server overloaded, try next model
+                    lastException = e;
+                    continue; 
+                } else {
+                    // Other errors (400 bad request, etc) likely won't be fixed by changing model
+                    throw e; 
+                }
+            } catch (Exception e) {
+                System.err.println("Model " + model + " error: " + e.getMessage());
+                lastException = e;
             }
-        } catch (HttpClientErrorException e) {
-             System.err.println("Gemini API Error: " + e.getResponseBodyAsString());
-             return List.of(new MergedNewsCluster("AI API Error", "Error from Gemini: " + e.getStatusCode() + " - " + e.getResponseBodyAsString(), "N/A", "N/A", "0", "N/A", Collections.emptyList()));
-        } catch (Exception e) {
-            e.printStackTrace();
-            return List.of(new MergedNewsCluster("System Error", "Analysis Failed: " + e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList()));
         }
-        return Collections.emptyList();
+        
+        throw new RuntimeException("All Gemini models failed. Last error: " + (lastException != null ? lastException.getMessage() : "Unknown"));
     }
 
     private List<MergedNewsCluster> parseClusterJsonFromAI(String rawText) {
@@ -188,7 +204,6 @@ public class NewsSystemService {
         } catch (Exception e) {
             System.err.println("Failed to parse Cluster JSON: " + rawText);
             e.printStackTrace();
-            // Return error object so user sees the raw failure
             return List.of(new MergedNewsCluster(
                 "Analysis Error",
                 "Failed to parse AI response. Raw output logged on server.",
