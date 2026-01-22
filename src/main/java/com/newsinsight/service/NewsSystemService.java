@@ -156,4 +156,21 @@ public class NewsSystemService {
             return Collections.emptyList();
         }
     }
+
+    @SuppressWarnings("unchecked")
+    private String extractTextFromResponse(Map<String, Object> responseBody) {
+        try {
+            List<Map<String, Object>> candidates = (List<Map<String, Object>>) responseBody.get("candidates");
+            if (candidates != null && !candidates.isEmpty()) {
+                Map<String, Object> content = (Map<String, Object>) candidates.get(0).get("content");
+                List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
+                if (parts != null && !parts.isEmpty()) {
+                    return (String) parts.get(0).get("text");
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "{}";
+    }
 }
