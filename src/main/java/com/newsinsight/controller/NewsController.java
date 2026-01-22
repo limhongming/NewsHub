@@ -29,15 +29,15 @@ public class NewsController {
     }
 
     @GetMapping("/news/merged")
-    public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang) {
+    public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-2.5-flash") String model) {
         List<NewsItem> cnnNews = newsService.getCNNNews();
-        return newsSystemService.processAndClusterNews(cnnNews, lang, true);
+        return newsSystemService.processAndClusterNews(cnnNews, lang, true, model);
     }
 
     @GetMapping("/news/bbc/merged")
-    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang) {
+    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-2.5-flash") String model) {
         List<NewsItem> bbcNews = newsService.getTopNews();
-        return newsSystemService.processAndClusterNews(bbcNews, lang, false);
+        return newsSystemService.processAndClusterNews(bbcNews, lang, false, model);
     }
 
     @GetMapping("/news/cnn")

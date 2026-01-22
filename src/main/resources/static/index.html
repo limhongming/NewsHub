@@ -159,6 +159,11 @@
                 <span class="brand-news">News</span><span class="brand-hub">Hub</span>
             </span>
             <div class="d-flex align-items-center gap-2">
+                <select id="model-select" class="form-select form-select-sm bg-dark text-light border-secondary" style="width: auto;">
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                </select>
                 <select id="lang-select" class="form-select form-select-sm bg-dark text-light border-secondary" style="width: auto;">
                     <option value="English">English</option>
                     <option value="Chinese">中文 (Chinese)</option>
@@ -274,20 +279,20 @@
                 // Pass the item directly to analysis function via global array not strictly needed if we pass data
                 // For simplicity, we just use the link in the openAnalysisModal
                 
-                card.innerHTML = `
-                    <div class="card news-card opacity-75">
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="card-title text-secondary">${item.title}</h5>
-                            <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>
-                            <p class="card-text flex-grow-1">${summary}</p>
-                            <div class="mt-3">
-                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "\'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm">
+                card.innerHTML = "`
+                    <div class=\"card news-card opacity-75\">
+                        <div class=\"card-body d-flex flex-column\">
+                            <h5 class=\"card-title text-secondary\">${item.title}</h5>
+                            <h6 class=\"card-subtitle mb-2 text-muted\" style=\"font-size: 0.8rem\">${new Date(item.published).toLocaleString()}</h6>
+                            <p class=\"card-text flex-grow-1\">${summary}</p>
+                            <div class=\"mt-3\">
+                                <button onclick=\"openAnalysisModal('${item.title.replace(/'/g, "\'")}', '${item.link}')\" class=\"btn btn-outline-secondary btn-sm\">
                                     Analyze Single Article
                                 </button>
                             </div>
                         </div>
                     </div>
-                `;
+                ";
                 container.appendChild(card);
             });
         }
@@ -317,46 +322,46 @@
                 if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
                 else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
 
-                card.innerHTML = `
-                    <div class="card news-card mb-3 border-warning">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between">
-                                <h3 class="card-title text-warning">${cluster.topic}</h3>
-                                <span class="badge bg-dark border border-secondary align-self-start p-2">
-                                    Impact: <span class="${ratingClass}">${rating}/10</span>
+                card.innerHTML = "`
+                    <div class=\"card news-card mb-3 border-warning\">
+                        <div class=\"card-body\">
+                            <div class=\"d-flex justify-content-between\">
+                                <h3 class=\"card-title text-warning\">${cluster.topic}</h3>
+                                <span class=\"badge bg-dark border border-secondary align-self-start p-2\">
+                                    Impact: <span class=\"${ratingClass}\">${rating}/10</span>
                                 </span>
                             </div>
-                            <hr style="border-color: #555;">
+                            <hr style=\"border-color: #555;\">
                             
-                            <div class="row">
-                                <div class="col-md-8">
-                                    <h6 class="text-secondary text-uppercase small">Summary</h6>
-                                    <p class="card-text" style="font-size: 1.1rem; line-height: 1.6;">${cluster.summary}</p>
+                            <div class=\"row\">
+                                <div class=\"col-md-8\">
+                                    <h6 class=\"text-secondary text-uppercase small\">Summary</h6>
+                                    <p class=\"card-text\" style=\"font-size: 1.1rem; line-height: 1.6;\">${cluster.summary}</p>
                                 </div>
-                                <div class="col-md-4 border-start border-secondary">
-                                    <h6 class="text-secondary text-uppercase small">Economic Impact</h6>
-                                    <p class="text-info">${cluster.economic_impact}</p>
+                                <div class=\"col-md-4 border-start border-secondary\">
+                                    <h6 class=\"text-secondary text-uppercase small\">Economic Impact</h6>
+                                    <p class=\"text-info\">${cluster.economic_impact}</p>
                                 </div>
                             </div>
                             
-                            <div class="mt-3">
-                                <button class="btn btn-outline-warning btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}" aria-expanded="false">
+                            <div class=\"mt-3\">
+                                <button class=\"btn btn-outline-warning btn-sm w-100\" type=\"button\" data-bs-toggle=\"collapse\" data-bs-target=\"#${uniqueId}\" aria-expanded=\"false\">
                                     ▼ View Potential Impacts & Predictions
                                 </button>
-                                <div class="collapse mt-3" id="${uniqueId}">
-                                    <div class="card card-body bg-dark border-secondary">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <h6 class="text-secondary text-uppercase small">Global / Geopolitical Impact</h6>
-                                                <p class="text-light">${cluster.global_impact || 'N/A'}</p>
+                                <div class=\"collapse mt-3\" id="${uniqueId}">
+                                    <div class=\"card card-body bg-dark border-secondary\">
+                                        <div class=\"row\">
+                                            <div class=\"col-md-6\">
+                                                <h6 class=\"text-secondary text-uppercase small\">Global / Geopolitical Impact</h6>
+                                                <p class=\"text-light\">${cluster.global_impact || 'N/A'}</p>
                                             </div>
-                                            <div class="col-md-6">
-                                                <h6 class="text-secondary text-uppercase small">What Could Happen Next?</h6>
-                                                <p class="text-light fst-italic">"${cluster.what_next || 'N/A'}"</p>
+                                            <div class=\"col-md-6\">
+                                                <h6 class=\"text-secondary text-uppercase small\">What Could Happen Next?</h6>
+                                                <p class=\"text-light fst-italic\">"${cluster.what_next || 'N/A'}"</p>
                                             </div>
                                         </div>
-                                        <hr class="border-secondary">
-                                        <h6 class="text-secondary text-uppercase small">Sources</h6>
+                                        <hr class=\"border-secondary\">
+                                        <h6 class=\"text-secondary text-uppercase small\">Sources</h6>
                                         ${linksHtml}
                                     </div>
                                 </div>
@@ -364,7 +369,7 @@
 
                         </div>
                     </div>
-                `;
+                ";
                 container.appendChild(card);
             });
         }
@@ -374,6 +379,7 @@
         async function loadFeed(tabName, rawEndpoint, aiEndpoint) {
             const container = document.getElementById(tabName + '-container');
             const lang = document.getElementById('lang-select').value;
+            const model = document.getElementById('model-select').value;
             
             // 1. Show Loading State
             container.innerHTML = '';
@@ -388,9 +394,9 @@
                 renderRawItems(container, rawItems);
                 
                 // 4. Trigger AI Analysis
-                showStatusBar(tabName, `AI is clustering & translating to ${lang}... (this takes ~15s)`, true);
+                showStatusBar(tabName, `AI (${model}) is analyzing & translating to ${lang}...`, true);
                 
-                const aiResponse = await fetch(`${aiEndpoint}?lang=${lang}`);
+                const aiResponse = await fetch(`${aiEndpoint}?lang=${lang}&model=${model}`);
                 const clusters = await aiResponse.json();
 
                 // 5. Replace with Clusters
@@ -492,7 +498,7 @@
         window.onload = loadBBCMerged;
     </script>
     <footer class="text-center mt-5 mb-4 text-secondary small">
-        NewsHub v1.4.0 | Live AI Feed
+        NewsHub v1.5.0 | User-Selectable AI Models
     </footer>
 </body>
 </html>

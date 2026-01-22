@@ -79,7 +79,7 @@ public class NewsSystemService {
         }
     }
 
-    public List<MergedNewsCluster> processAndClusterNews(List<NewsItem> items, String language, boolean shouldCluster) {
+    public List<MergedNewsCluster> processAndClusterNews(List<NewsItem> items, String language, boolean shouldCluster, String preferredModel) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
              return List.of(new MergedNewsCluster("API Key Missing", "Please configure gemini.api.key in application.properties", "N/A", "N/A", "0", "N/A", Collections.emptyList()));
         }
@@ -99,6 +99,7 @@ public class NewsSystemService {
             itemsText.append("  Snippet: ").append(item.summary()).append("\n\n");
         }
         
+        // Truncate to avoid payload limits (approx 30k chars is safe for Flash)
         String fullText = itemsText.toString();
         if (fullText.length() > 30000) {
             fullText = fullText.substring(0, 30000) + "...[TRUNCATED]";
@@ -134,7 +135,7 @@ public class NewsSystemService {
                 """.formatted(clusteringInstruction, language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, fullText);
 
         try {
-            String rawText = callGeminiApiWithFallback(prompt);
+            String rawText = callGeminiApiWithFallback(prompt, preferredModel);
             System.out.println("DEBUG: AI Cluster Response: " + rawText);
             return parseClusterJsonFromAI(rawText);
         } catch (Exception e) {
@@ -147,7 +148,7 @@ public class NewsSystemService {
         }
     }
 
-    private String callGeminiApiWithFallback(String prompt) {
+    private String callGeminiApiWithFallback(String prompt, String preferredModel) {
         // Safety Settings
         List<Map<String, String>> safetySettings = List.of(
             Map.of("category", "HARM_CATEGORY_HARASSMENT", "threshold", "BLOCK_NONE"),
@@ -168,8 +169,20 @@ public class NewsSystemService {
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
         Exception lastException = null;
+        
+        // Create a list starting with the preferred model, then the others
+        java.util.List<String> modelsToTry = new java.util.ArrayList<>();
+        if (preferredModel != null && !preferredModel.isEmpty()) {
+            modelsToTry.add(preferredModel);
+        }
+        // Add defaults if not already present
+        for (String m : FALLBACK_MODELS) {
+            if (!modelsToTry.contains(m)) {
+                modelsToTry.add(m);
+            }
+        }
 
-        for (String model : FALLBACK_MODELS) {
+        for (String model : modelsToTry) {
             try {
                 System.out.println("Trying Gemini Model: " + model);
                 String url = String.format(API_URL_TEMPLATE, model, apiKey);
@@ -180,12 +193,11 @@ public class NewsSystemService {
                 }
             } catch (HttpClientErrorException e) {
                 System.err.println("Model " + model + " failed: " + e.getStatusCode());
-                if (e.getStatusCode().value() == 429 || e.getStatusCode().value() == 503) {
-                    // Quota exceeded or server overloaded, try next model
+                // 404 might mean the model doesn't exist (e.g. user typo or deprecated), so we should try next
+                if (e.getStatusCode().value() == 429 || e.getStatusCode().value() == 503 || e.getStatusCode().value() == 404) {
                     lastException = e;
                     continue; 
                 } else {
-                    // Other errors (400 bad request, etc) likely won't be fixed by changing model
                     throw e; 
                 }
             } catch (Exception e) {
