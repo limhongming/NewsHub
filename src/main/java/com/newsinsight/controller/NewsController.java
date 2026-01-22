@@ -7,6 +7,7 @@ import com.newsinsight.model.NewsItem;
 import com.newsinsight.model.GeminiModel;
 import com.newsinsight.service.NewsSystemService;
 import com.newsinsight.service.NewsService;
+import com.newsinsight.service.NewsCacheService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,10 +19,12 @@ public class NewsController {
 
     private final NewsService newsService;
     private final NewsSystemService newsSystemService;
+    private final NewsCacheService newsCacheService;
 
-    public NewsController(NewsService newsService, NewsSystemService newsSystemService) {
+    public NewsController(NewsService newsService, NewsSystemService newsSystemService, NewsCacheService newsCacheService) {
         this.newsService = newsService;
         this.newsSystemService = newsSystemService;
+        this.newsCacheService = newsCacheService;
     }
 
     @GetMapping("/news")
@@ -36,14 +39,30 @@ public class NewsController {
 
     @GetMapping("/news/merged")
     public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-2.5-flash") String model) {
+        List<MergedNewsCluster> cached = newsCacheService.getCachedNews("cnn", lang, model);
+        if (cached != null) return cached;
+
         List<NewsItem> cnnNews = newsService.getCNNNews();
-        return newsSystemService.processAndClusterNews(cnnNews, lang, true, model);
+        List<MergedNewsCluster> result = newsSystemService.processAndClusterNews(cnnNews, lang, true, model);
+        
+        if (result != null && !result.isEmpty() && !result.get(0).topic().contains("Error")) {
+            newsCacheService.cacheNews("cnn", lang, model, result);
+        }
+        return result;
     }
 
     @GetMapping("/news/bbc/merged")
     public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-2.5-flash") String model) {
+        List<MergedNewsCluster> cached = newsCacheService.getCachedNews("bbc", lang, model);
+        if (cached != null) return cached;
+
         List<NewsItem> bbcNews = newsService.getTopNews();
-        return newsSystemService.processAndClusterNews(bbcNews, lang, false, model);
+        List<MergedNewsCluster> result = newsSystemService.processAndClusterNews(bbcNews, lang, false, model);
+
+        if (result != null && !result.isEmpty() && !result.get(0).topic().contains("Error")) {
+            newsCacheService.cacheNews("bbc", lang, model, result);
+        }
+        return result;
     }
 
     @GetMapping("/news/cnn")
