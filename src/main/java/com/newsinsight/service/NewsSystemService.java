@@ -230,16 +230,21 @@ public class NewsSystemService {
                 ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
                 
                 if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    return extractTextFromResponse(response.getBody());
+                    String extracted = extractTextFromResponse(response.getBody());
+                    if (extracted == null || extracted.isEmpty() || extracted.equals("{}")) {
+                        throw new RuntimeException("Model " + model + " returned empty content (Safety Filter?)");
+                    }
+                    return extracted;
                 }
             } catch (HttpClientErrorException e) {
-                System.err.println("Model " + model + " failed: " + e.getStatusCode());
+                System.err.println("Model " + model + " failed: " + e.getStatusCode() + " - " + e.getResponseBodyAsString());
                 // 404 might mean the model doesn't exist (e.g. user typo or deprecated), so we should try next
                 if (e.getStatusCode().value() == 429 || e.getStatusCode().value() == 503 || e.getStatusCode().value() == 404) {
                     lastException = e;
                     continue; 
                 } else {
-                    throw e; 
+                    // Critical API Error (400, 401, etc) - Stop and report
+                    throw new RuntimeException("Gemini API Error (" + model + "): " + e.getResponseBodyAsString());
                 }
             } catch (Exception e) {
                 System.err.println("Model " + model + " error: " + e.getMessage());
@@ -252,6 +257,9 @@ public class NewsSystemService {
 
     private List<MergedNewsCluster> parseClusterJsonFromAI(String rawText) {
         try {
+            if (rawText == null || rawText.isEmpty()) {
+                 return List.of(new MergedNewsCluster("Analysis Error", "AI returned empty response.", "N/A", "N/A", "0", "N/A", Collections.emptyList()));
+            }
             String jsonText = rawText.replace("```json", "").replace("```", "").trim();
             return objectMapper.readValue(jsonText, new TypeReference<List<MergedNewsCluster>>(){});
         } catch (Exception e) {
@@ -271,10 +279,20 @@ public class NewsSystemService {
         try {
             List<Map<String, Object>> candidates = (List<Map<String, Object>>) responseBody.get("candidates");
             if (candidates != null && !candidates.isEmpty()) {
-                Map<String, Object> content = (Map<String, Object>) candidates.get(0).get("content");
-                List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
-                if (parts != null && !parts.isEmpty()) {
-                    return (String) parts.get(0).get("text");
+                Map<String, Object> candidate = candidates.get(0);
+                // Check finish reason
+                String finishReason = (String) candidate.get("finishReason");
+                if ("SAFETY".equals(finishReason)) {
+                    System.err.println("Gemini Safety Filter Triggered!");
+                    return null;
+                }
+                
+                Map<String, Object> content = (Map<String, Object>) candidate.get("content");
+                if (content != null) {
+                    List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
+                    if (parts != null && !parts.isEmpty()) {
+                        return (String) parts.get(0).get("text");
+                    }
                 }
             }
         } catch (Exception e) {
