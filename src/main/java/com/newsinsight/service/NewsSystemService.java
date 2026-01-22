@@ -92,8 +92,23 @@ public class NewsSystemService {
             return Collections.emptyList();
         }
 
+        // Filter out system error or no news items to avoid confusing the AI
+        List<NewsItem> validItems = items.stream()
+                .filter(item -> !item.title().startsWith("System Error") && !item.title().startsWith("No News Found"))
+                .collect(Collectors.toList());
+
+        if (validItems.isEmpty()) {
+            // Return a dummy cluster so the user sees something other than "API Key missing"
+            return List.of(new MergedNewsCluster(
+                "No Content to Analyze",
+                "The news feed returned no valid articles to analyze. Please try again later.",
+                "N/A",
+                Collections.emptyList()
+            ));
+        }
+
         StringBuilder itemsText = new StringBuilder();
-        for (NewsItem item : items) {
+        for (NewsItem item : validItems) {
             itemsText.append("- Title: ").append(item.title()).append("\n");
             itemsText.append("  Link: ").append(item.link()).append("\n");
             itemsText.append("  Snippet: ").append(item.summary()).append("\n\n");
@@ -139,6 +154,7 @@ public class NewsSystemService {
             
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 String rawText = extractTextFromResponse(response.getBody());
+                System.out.println("DEBUG: AI Cluster Response: " + rawText); // Log response
                 return parseClusterJsonFromAI(rawText);
             }
         } catch (Exception e) {
