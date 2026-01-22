@@ -31,9 +31,14 @@ public class NewsService {
     private List<NewsItem> fetchNewsFromRss(String feedUrlStr, int limit) {
         List<NewsItem> newsItems = new ArrayList<>();
         try {
-            URL feedUrl = new URL(feedUrlStr);
+            URL url = new URL(feedUrlStr);
+            java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(5000);
+
             SyndFeedInput input = new SyndFeedInput();
-            SyndFeed feed = input.build(new XmlReader(feedUrl));
+            SyndFeed feed = input.build(new XmlReader(connection));
 
             List<SyndEntry> entries = feed.getEntries();
             for (int i = 0; i < Math.min(entries.size(), limit); i++) {
@@ -47,6 +52,7 @@ public class NewsService {
                 ));
             }
         } catch (Exception e) {
+            System.err.println("Error fetching RSS feed (" + feedUrlStr + "): " + e.getMessage());
             e.printStackTrace();
         }
         return newsItems;
