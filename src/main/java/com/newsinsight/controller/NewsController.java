@@ -34,6 +34,12 @@ public class NewsController {
         return newsSystemService.processAndClusterNews(cnnNews, lang);
     }
 
+    @GetMapping("/news/bbc/merged")
+    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang) {
+        List<NewsItem> bbcNews = newsService.getTopNews();
+        return newsSystemService.processAndClusterNews(bbcNews, lang);
+    }
+
     @PostMapping("/analyze")
     public ResponseEntity<?> analyzeNews(@RequestBody AnalysisRequest request) {
         if (request.url() == null || request.url().isEmpty()) {

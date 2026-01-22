@@ -18,7 +18,7 @@ import java.util.List;
 public class NewsService {
 
     private static final String BBC_RSS_FEED = "https://feeds.bbci.co.uk/news/rss.xml";
-    private static final String CNN_RSS_FEED = "https://rss.cnn.com/rss/cnn_topstories.rss"; // Changed to HTTPS
+    private static final String CNN_RSS_FEED = "http://rss.cnn.com/rss/cnn_topstories.rss"; // Reverted to HTTP
 
     public List<NewsItem> getTopNews() {
         return fetchNewsFromRss(BBC_RSS_FEED, 10);
