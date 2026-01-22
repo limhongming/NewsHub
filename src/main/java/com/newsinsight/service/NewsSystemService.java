@@ -115,28 +115,25 @@ public class NewsSystemService {
         }
 
         String prompt = """
-                Analyze the following news items. Group them into clusters based on shared events or related incidents (e.g. "incidents after this news").
+                You are an expert news analyst. Analyze the following news items and group them into logical clusters.
                 
+                CRITICAL INSTRUCTIONS:
+                1. CLUSTERING: Group articles that are about the SAME event or directly related incidents. Do not leave related stories separate.
+                2. TRANSLATION: You MUST translate the values of "topic", "summary", and "economic_impact" into %s. Do NOT return English unless the target language is English.
+                
+                Input News Items:
                 %s
                 
-                For each cluster, provide:
-                1. "topic": Main headline for the cluster.
-                2. "summary": A combined summary of the event.
-                3. "economic_impact": Potential economic impacts.
-                4. "related_links": A list of the original links that belong to this cluster.
-                
-                Translate the "topic", "summary", and "economic_impact" to: %s
-                
-                Return ONLY a JSON Array of objects (no markdown):
+                Output Schema (JSON Array):
                 [
                   {
-                    "topic": "...",
-                    "summary": "...",
-                    "economic_impact": "...",
-                    "related_links": ["...", "..."]
+                    "topic": "Translated Headline",
+                    "summary": "Translated detailed summary of the event group.",
+                    "economic_impact": "Translated economic analysis.",
+                    "related_links": ["url1", "url2"] // Keep original URLs
                   }
                 ]
-                """.formatted(itemsText.toString(), language);
+                """.formatted(language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, itemsText.toString());
 
         // Construct Request Body
         Map<String, Object> part = Map.of("text", prompt);

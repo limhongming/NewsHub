@@ -40,6 +40,11 @@ public class NewsController {
         return newsSystemService.processAndClusterNews(bbcNews, lang);
     }
 
+    @GetMapping("/news/cnn")
+    public List<NewsItem> getCNNNews() {
+        return newsService.getCNNNews();
+    }
+
     @PostMapping("/analyze")
     public ResponseEntity<?> analyzeNews(@RequestBody AnalysisRequest request) {
         if (request.url() == null || request.url().isEmpty()) {
