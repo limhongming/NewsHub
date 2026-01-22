@@ -18,7 +18,7 @@ import java.util.List;
 public class NewsService {
 
     private static final String BBC_RSS_FEED = "https://feeds.bbci.co.uk/news/rss.xml";
-    private static final String CNN_RSS_FEED = "http://rss.cnn.com/rss/edition.rss";
+    private static final String CNN_RSS_FEED = "http://rss.cnn.com/rss/cnn_topstories.rss";
 
     public List<NewsItem> getTopNews() {
         return fetchNewsFromRss(BBC_RSS_FEED, 10);
@@ -34,8 +34,8 @@ public class NewsService {
             URL url = new URL(feedUrlStr);
             java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
+            connection.setConnectTimeout(10000); // Increased timeout
+            connection.setReadTimeout(10000);
 
             SyndFeedInput input = new SyndFeedInput();
             SyndFeed feed = input.build(new XmlReader(connection));
@@ -54,6 +54,13 @@ public class NewsService {
         } catch (Exception e) {
             System.err.println("Error fetching RSS feed (" + feedUrlStr + "): " + e.getMessage());
             e.printStackTrace();
+            // Return error as a news item so user sees it in UI
+            newsItems.add(new NewsItem(
+                "System Error: Failed to fetch news",
+                "#",
+                new java.util.Date(),
+                "Error details: " + e.toString() + ". Try refreshing or checking server logs."
+            ));
         }
         return newsItems;
     }
