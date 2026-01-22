@@ -31,13 +31,13 @@ public class NewsController {
     @GetMapping("/news/merged")
     public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang) {
         List<NewsItem> cnnNews = newsService.getCNNNews();
-        return newsSystemService.processAndClusterNews(cnnNews, lang);
+        return newsSystemService.processAndClusterNews(cnnNews, lang, true);
     }
 
     @GetMapping("/news/bbc/merged")
     public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang) {
         List<NewsItem> bbcNews = newsService.getTopNews();
-        return newsSystemService.processAndClusterNews(bbcNews, lang);
+        return newsSystemService.processAndClusterNews(bbcNews, lang, false);
     }
 
     @GetMapping("/news/cnn")

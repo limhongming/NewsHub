@@ -299,9 +299,10 @@
                 return;
             }
 
-            clusters.forEach((cluster) => {
+            clusters.forEach((cluster, index) => {
                 const card = document.createElement('div');
                 card.className = 'col-md-12 fade-in'; 
+                const uniqueId = 'details-' + index + '-' + Math.random().toString(36).substr(2, 9);
                 
                 let linksHtml = '<div class="link-list">';
                 if(cluster.related_links) {
@@ -311,13 +312,22 @@
                 }
                 linksHtml += '</div>';
 
+                const rating = cluster.impact_rating || 'N/A';
+                let ratingClass = 'text-secondary';
+                if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
+                else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
+
                 card.innerHTML = `
                     <div class="card news-card mb-3 border-warning">
                         <div class="card-body">
                             <div class="d-flex justify-content-between">
                                 <h3 class="card-title text-warning">${cluster.topic}</h3>
+                                <span class="badge bg-dark border border-secondary align-self-start p-2">
+                                    Impact: <span class="${ratingClass}">${rating}/10</span>
+                                </span>
                             </div>
                             <hr style="border-color: #555;">
+                            
                             <div class="row">
                                 <div class="col-md-8">
                                     <h6 class="text-secondary text-uppercase small">Summary</h6>
@@ -326,11 +336,32 @@
                                 <div class="col-md-4 border-start border-secondary">
                                     <h6 class="text-secondary text-uppercase small">Economic Impact</h6>
                                     <p class="text-info">${cluster.economic_impact}</p>
-                                    
-                                    <h6 class="text-secondary text-uppercase small mt-4">Related Sources</h6>
-                                    ${linksHtml}
                                 </div>
                             </div>
+                            
+                            <div class="mt-3">
+                                <button class="btn btn-outline-warning btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}" aria-expanded="false">
+                                    ▼ View Potential Impacts & Predictions
+                                </button>
+                                <div class="collapse mt-3" id="${uniqueId}">
+                                    <div class="card card-body bg-dark border-secondary">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h6 class="text-secondary text-uppercase small">Global / Geopolitical Impact</h6>
+                                                <p class="text-light">${cluster.global_impact || 'N/A'}</p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6 class="text-secondary text-uppercase small">What Could Happen Next?</h6>
+                                                <p class="text-light fst-italic">"${cluster.what_next || 'N/A'}"</p>
+                                            </div>
+                                        </div>
+                                        <hr class="border-secondary">
+                                        <h6 class="text-secondary text-uppercase small">Sources</h6>
+                                        ${linksHtml}
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 `;

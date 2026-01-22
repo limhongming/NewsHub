@@ -87,7 +87,7 @@ public class NewsSystemService {
         }
     }
 
-    public List<MergedNewsCluster> processAndClusterNews(List<NewsItem> items, String language) {
+    public List<MergedNewsCluster> processAndClusterNews(List<NewsItem> items, String language, boolean shouldCluster) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
             return Collections.emptyList();
         }
@@ -103,6 +103,7 @@ public class NewsSystemService {
                 "No Content to Analyze",
                 "The news feed returned no valid articles to analyze. Please try again later.",
                 "N/A",
+                "N/A", "0", "N/A",
                 Collections.emptyList()
             ));
         }
@@ -114,12 +115,17 @@ public class NewsSystemService {
             itemsText.append("  Snippet: ").append(item.summary()).append("\n\n");
         }
 
+        String clusteringInstruction = shouldCluster 
+            ? "1. CLUSTERING: Group articles that are about the SAME event or directly related incidents. Do not leave related stories separate."
+            : "1. NO CLUSTERING: Treat each news item as a completely separate topic. Do NOT merge them. Create one output object for each input item.";
+
         String prompt = """
-                You are an expert news analyst. Analyze the following news items and group them into logical clusters.
+                You are an expert news analyst. Analyze the following news items.
                 
                 CRITICAL INSTRUCTIONS:
-                1. CLUSTERING: Group articles that are about the SAME event or directly related incidents. Do not leave related stories separate.
-                2. TRANSLATION: You MUST translate the values of "topic", "summary", and "economic_impact" into %s. Do NOT return English unless the target language is English.
+                %s
+                2. TRANSLATION: You MUST translate the values of "topic", "summary", "economic_impact", "global_impact", and "what_next" into %s. Do NOT return English unless the target language is English.
+                3. ANALYSIS: For each group (or item), provide a comprehensive summary, economic impact, global impact, impact rating (1-10), and a prediction of what happens next.
                 
                 Input News Items:
                 %s
@@ -130,10 +136,13 @@ public class NewsSystemService {
                     "topic": "Translated Headline",
                     "summary": "Translated detailed summary of the event group.",
                     "economic_impact": "Translated economic analysis.",
+                    "global_impact": "Translated geopolitical/global impact.",
+                    "impact_rating": "8", // 1-10 string
+                    "what_next": "Translated prediction of what could happen next.",
                     "related_links": ["url1", "url2"] // Keep original URLs
                   }
                 ]
-                """.formatted(language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, itemsText.toString());
+                """.formatted(clusteringInstruction, language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, itemsText.toString());
 
         // Construct Request Body
         Map<String, Object> part = Map.of("text", prompt);
