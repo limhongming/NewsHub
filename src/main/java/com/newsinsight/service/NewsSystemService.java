@@ -62,7 +62,7 @@ public class NewsSystemService {
                 """.formatted(text.replace("\"", "\\\"")); 
 
         try {
-            String rawText = callGeminiApiWithFallback(prompt);
+            String rawText = callGeminiApiWithFallback(prompt, null);
             return parseJsonFromAI(rawText);
         } catch (Exception e) {
             return new AnalysisResponse.AnalysisData("Analysis failed: " + e.getMessage());
