@@ -149,6 +149,15 @@
             50% { opacity: 1; transform: scale(1.2); }
             100% { opacity: 0.5; transform: scale(0.8); }
         }
+        .ai-placeholder {
+            background: rgba(255, 153, 0, 0.05);
+            border: 1px dashed #555;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: #888;
+        }
     </style>
 </head>
 <body>
@@ -293,17 +302,29 @@
             items.forEach((item, index) => {
                 const card = document.createElement('div');
                 card.className = 'col-md-6 col-lg-4';
+                // Using data-link for matching back later
+                card.dataset.link = item.link;
+                
                 const summary = item.summary || 'Click below to analyze.';
                 
                 card.innerHTML = `
-                    <div class="card news-card opacity-75">
+                    <div class="card news-card">
                         <div class="card-body d-flex flex-column">
-                            <h5 class="card-title text-secondary">${item.title}</h5>
+                            <h5 class="card-title text-light">${item.title}</h5>
                             <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>
-                            <p class="card-text flex-grow-1">${summary}</p>
+                            <p class="card-text text-secondary flex-grow-1 small">${summary}</p>
+                            
+                            <!-- In-Card AI Placeholder -->
+                            <div class="ai-placeholder" id="ai-box-${index}">
+                                <div class="d-flex align-items-center">
+                                    <div class="spinner-grow spinner-grow-sm text-warning me-2" role="status"></div>
+                                    <span>AI Analysis: Still Loading...</span>
+                                </div>
+                            </div>
+
                             <div class="mt-3">
-                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "\'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm">
-                                    Analyze Single Article
+                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "\'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100">
+                                    Read Full Article
                                 </button>
                             </div>
                         </div>
@@ -313,81 +334,138 @@
             });
         }
 
-        function renderClusters(container, clusters) {
-            container.innerHTML = '';
-            if (clusters.length === 0) {
-                container.innerHTML = '<div class="col-12 text-center"><p>No analysis results returned.</p></div>';
+        function updateCardsWithClusters(container, clusters, isBBC) {
+            if (!clusters || clusters.length === 0) {
+                // Do NOT clear container. Just return.
                 return;
             }
 
-            clusters.forEach((cluster, index) => {
-                const card = document.createElement('div');
-                card.className = 'col-md-12 fade-in'; 
-                const uniqueId = 'details-' + index + '-' + Math.random().toString(36).substr(2, 9);
-                
-                let linksHtml = '<div class="link-list">';
-                if(cluster.related_links) {
-                    cluster.related_links.forEach(link => {
-                        linksHtml += `<a href="${link}" target="_blank">🔗 ${link}</a>`;
-                    });
-                }
-                linksHtml += '</div>';
+            if (!isBBC) {
+                // CNN Strategy: Clustering transforms the list structure, so we must replace.
+                container.innerHTML = '';
+                clusters.forEach((cluster, index) => {
+                    renderSingleClusterCard(container, cluster, index);
+                });
+            } else {
+                // BBC Strategy: Update in place
+                clusters.forEach((cluster) => {
+                    // Try to find the matching raw card
+                    // In unclustered mode, related_links[0] is the original link
+                    if (cluster.related_links && cluster.related_links.length > 0) {
+                        const originalLink = cluster.related_links[0];
+                        // Find div with data-link
+                        // Note: complex querySelector might fail with special chars in URL, iterate instead
+                        const cards = container.children;
+                        for (let cardWrapper of cards) {
+                            if (cardWrapper.dataset.link === originalLink) {
+                                // Found match! Update the placeholder.
+                                const aiBox = cardWrapper.querySelector('.ai-placeholder');
+                                if (aiBox) {
+                                    // Replace placeholder with analysis
+                                    const rating = cluster.impact_rating || 'N/A';
+                                    let ratingClass = 'text-secondary';
+                                    if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
+                                    else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
 
-                const rating = cluster.impact_rating || 'N/A';
-                let ratingClass = 'text-secondary';
-                if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
-                else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
+                                    const uniqueId = 'details-inline-' + Math.random().toString(36).substr(2, 9);
 
-                card.innerHTML = "`
-                    <div class=\"card news-card mb-3 border-warning\">
-                        <div class=\"card-body\">
-                            <div class=\"d-flex justify-content-between\">
-                                <h3 class=\"card-title text-warning\">${cluster.topic}</h3>
-                                <span class=\"badge bg-dark border border-secondary align-self-start p-2\">
-                                    Impact: <span class=\"${ratingClass}\">${rating}/10</span>
-                                </span>
-                            </div>
-                            <hr style=\"border-color: #555;\">
-                            
-                            <div class=\"row\">
-                                <div class=\"col-md-8\">
-                                    <h6 class=\"text-secondary text-uppercase small\">Summary</h6>
-                                    <p class=\"card-text\" style=\"font-size: 1.1rem; line-height: 1.6;\">${cluster.summary}</p>
-                                </div>
-                                <div class=\"col-md-4 border-start border-secondary\">
-                                    <h6 class=\"text-secondary text-uppercase small\">Economic Impact</h6>
-                                    <p class=\"text-info\">${cluster.economic_impact}</p>
-                                </div>
-                            </div>
-                            
-                            <div class=\"mt-3\">
-                                <button class=\"btn btn-outline-warning btn-sm w-100\" type=\"button\" data-bs-toggle=\"collapse\" data-bs-target=\"#${uniqueId}\" aria-expanded=\"false\">
-                                    ▼ View Potential Impacts & Predictions
-                                </button>
-                                <div class=\"collapse mt-3\" id="${uniqueId}">
-                                    <div class=\"card card-body bg-dark border-secondary\">
-                                        <div class=\"row\">
-                                            <div class=\"col-md-6\">
-                                                <h6 class=\"text-secondary text-uppercase small\">Global / Geopolitical Impact</h6>
-                                                <p class=\"text-light\">${cluster.global_impact || 'N/A'}</p>
-                                            </div>
-                                            <div class=\"col-md-6\">
-                                                <h6 class=\"text-secondary text-uppercase small\">What Could Happen Next?</h6>
-                                                <p class=\"text-light fst-italic\">"${cluster.what_next || 'N/A'}"</p>
+                                    aiBox.className = 'mt-3 border-top border-secondary pt-3';
+                                    aiBox.style.background = 'transparent';
+                                    aiBox.style.border = 'none';
+                                    aiBox.innerHTML = `
+                                        <h6 class="text-warning small text-uppercase mb-1">AI Summary</h6>
+                                        <p class="text-white small">${cluster.summary}</p>
+                                        
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="badge bg-dark border border-secondary text-secondary">Impact: <span class="${ratingClass}">${rating}/10</span></span>
+                                            <button class="btn btn-sm btn-link text-warning p-0 text-decoration-none" style="font-size: 0.8rem" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">
+                                                Show Impacts ▼
+                                            </button>
+                                        </div>
+
+                                        <div class="collapse" id="${uniqueId}">
+                                            <div class="card card-body bg-dark border border-secondary p-2">
+                                                <p class="mb-1 small"><strong class="text-info">Economic:</strong> ${cluster.economic_impact}</p>
+                                                <p class="mb-1 small"><strong class="text-info">Global:</strong> ${cluster.global_impact}</p>
+                                                <p class="mb-0 small"><strong class="text-info">Next:</strong> ${cluster.what_next}</p>
                                             </div>
                                         </div>
-                                        <hr class=\"border-secondary\">
-                                        <h6 class=\"text-secondary text-uppercase small\">Sources</h6>
-                                        ${linksHtml}
+                                    `;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function renderSingleClusterCard(container, cluster, index) {
+            const card = document.createElement('div');
+            card.className = 'col-md-12 fade-in'; 
+            const uniqueId = 'details-' + index + '-' + Math.random().toString(36).substr(2, 9);
+            
+            let linksHtml = '<div class="link-list">';
+            if(cluster.related_links) {
+                cluster.related_links.forEach(link => {
+                    linksHtml += `<a href="${link}" target="_blank">🔗 ${link}</a>`;
+                });
+            }
+            linksHtml += '</div>';
+
+            const rating = cluster.impact_rating || 'N/A';
+            let ratingClass = 'text-secondary';
+            if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
+            else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
+
+            card.innerHTML = `
+                <div class="card news-card mb-3 border-warning">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <h3 class="card-title text-warning">${cluster.topic}</h3>
+                            <span class="badge bg-dark border border-secondary align-self-start p-2">
+                                Impact: <span class="${ratingClass}">${rating}/10</span>
+                            </span>
+                        </div>
+                        <hr style="border-color: #555;">
+                        
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6 class="text-secondary text-uppercase small">Summary</h6>
+                                <p class="card-text" style="font-size: 1.1rem; line-height: 1.6;">${cluster.summary}</p>
+                            </div>
+                            <div class="col-md-4 border-start border-secondary">
+                                <h6 class="text-secondary text-uppercase small">Economic Impact</h6>
+                                <p class="text-info">${cluster.economic_impact}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <button class="btn btn-outline-warning btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}" aria-expanded="false">
+                                ▼ View Potential Impacts & Predictions
+                            </button>
+                            <div class="collapse mt-3" id="${uniqueId}">
+                                <div class="card card-body bg-dark border-secondary">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6 class="text-secondary text-uppercase small">Global / Geopolitical Impact</h6>
+                                            <p class="text-light">${cluster.global_impact || 'N/A'}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="text-secondary text-uppercase small">What Could Happen Next?</h6>
+                                            <p class="text-light fst-italic">"${cluster.what_next || 'N/A'}"</p>
+                                        </div>
                                     </div>
+                                    <hr class="border-secondary">
+                                    <h6 class="text-secondary text-uppercase small">Sources</h6>
+                                    ${linksHtml}
                                 </div>
                             </div>
-
                         </div>
+
                     </div>
-                ";
-                container.appendChild(card);
-            });
+                </div>
+            `;
+            container.appendChild(card);
         }
 
         // --- Loading Logic ---
@@ -397,8 +475,7 @@
             const lang = document.getElementById('lang-select').value;
             const model = document.getElementById('model-select').value;
             
-            // 1. Show Loading State
-            container.innerHTML = '';
+            // 1. Show Loading State with Raw Items
             showStatusBar(tabName, 'Fetching latest headlines...', true);
 
             try {
@@ -406,8 +483,10 @@
                 const rawResponse = await fetch(rawEndpoint);
                 const rawItems = await rawResponse.json();
                 
-                // 3. Render Raw Immediately
-                renderRawItems(container, rawItems);
+                // 3. Render Raw Immediately (Analysis 'Waiting' state included)
+                // Determine if this tab is BBC (Unclustered) or CNN (Clustered) for initial render hint
+                const isBBC = tabName === 'bbc';
+                renderRawItems(container, rawItems, isBBC);
                 
                 // 4. Trigger AI Analysis
                 showStatusBar(tabName, `AI (${model}) is analyzing & translating to ${lang}...`, true);
@@ -415,14 +494,21 @@
                 const aiResponse = await fetch(`${aiEndpoint}?lang=${lang}&model=${model}`);
                 const clusters = await aiResponse.json();
 
-                // 5. Replace with Clusters
-                renderClusters(container, clusters);
-                showStatusBar(tabName, `Analysis Complete. (${clusters.length} topics found)`, false);
+                // 5. Update UI with AI results
+                // If it's CNN, this will replace the list. If BBC, it updates in place.
+                updateCardsWithClusters(container, clusters, isBBC);
+                
+                if (clusters.length > 0) {
+                    showStatusBar(tabName, `Analysis Complete. (${clusters.length} topics found)`, false);
+                } else {
+                    // This happens if AI returns empty list (e.g. Safety filter or error handled by backend returning empty)
+                    showStatusBar(tabName, 'Analysis returned no results (Check logs/limits).', false);
+                }
 
             } catch (error) {
                 console.error(error);
                 showStatusBar(tabName, 'Error: ' + error.message, false);
-                // Keep raw items visible if AI fails
+                // CRITICAL: We do NOT clear container here. Raw news remains visible.
             }
         }
 
@@ -562,7 +648,7 @@
         };
     </script>
     <footer class="text-center mt-5 mb-4 text-secondary small">
-        NewsHub v1.6.1 | Enhanced Error Reporting
+        NewsHub v1.7.0 | Per-Card Status & Robust Fallback
     </footer>
 </body>
 </html>
