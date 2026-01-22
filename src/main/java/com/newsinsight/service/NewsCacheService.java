@@ -59,10 +59,31 @@ public class NewsCacheService {
     }
 
     private String getCacheFileName(String tab, String lang, String model) {
-        // Simple sanitization
         return String.format("%s_%s_%s.json", 
             tab.replaceAll("[^a-zA-Z0-9]", ""), 
             lang.replaceAll("[^a-zA-Z0-9]", ""), 
             model.replaceAll("[^a-zA-Z0-9]", ""));
+    }
+
+    public MergedNewsCluster getCachedSnippet(String link, String lang, String model) {
+        String hash = String.valueOf(link.hashCode()).replace("-", "n");
+        String fileName = String.format("snippet_%s_%s_%s.json", hash, lang, model);
+        File cacheFile = new File(CACHE_DIR, fileName);
+
+        if (cacheFile.exists() && (System.currentTimeMillis() - cacheFile.lastModified() < CACHE_DURATION_MS)) {
+            try {
+                return objectMapper.readValue(cacheFile, MergedNewsCluster.class);
+            } catch (IOException e) { return null; }
+        }
+        return null;
+    }
+
+    public void cacheSnippet(String link, String lang, String model, MergedNewsCluster cluster) {
+        String hash = String.valueOf(link.hashCode()).replace("-", "n");
+        String fileName = String.format("snippet_%s_%s_%s.json", hash, lang, model);
+        File cacheFile = new File(CACHE_DIR, fileName);
+        try {
+            objectMapper.writeValue(cacheFile, cluster);
+        } catch (IOException e) { e.printStackTrace(); }
     }
 }

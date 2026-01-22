@@ -115,7 +115,7 @@
             padding-top: 10px;
             margin-top: 10px;
         }
-        .link-list a {
+        .link-list a { 
             color: #ff9900;
             text-decoration: none;
             display: block;
@@ -306,7 +306,7 @@
                                 </div>
                             </div>
                             <div class="mt-3">
-                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "\'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100">Read Full Article</button>
+                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100">Read Full Article</button>
                             </div>
                         </div>
                     </div>
@@ -465,7 +465,9 @@
                     summaryEl.innerText = ai.summary || "No summary provided."; econEl.innerText = ai.economic_impact || "N/A"; worldEl.innerText = ai.global_impact || "N/A"; scoreEl.innerText = ai.impact_rating || "?"; articleEl.innerText = data.full_text || "No text.";
                     const urgency = (ai.urgency || "Unknown").toString(); urgencyEl.innerText = urgency.toUpperCase(); urgencyEl.className = "impact-badge";
                     const urg = urgency.toLowerCase(); if (urg.includes('high') || urg.includes('critical')) urgencyEl.classList.add('bg-danger', 'text-white'); else if (urg.includes('medium')) urgencyEl.classList.add('bg-warning', 'text-dark'); else urgencyEl.classList.add('bg-success', 'text-white');
-                } else { articleEl.innerText = "Error: " + data.error; }
+                } else {
+                    articleEl.innerText = "Error: " + data.error;
+                }
                 modalElement.show();
             } catch(e) { articleEl.innerText = "Connection Failed."; modalElement.show(); } finally { loader.style.display = 'none'; }
         }

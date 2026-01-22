@@ -1,10 +1,9 @@
 package com.newsinsight.controller;
 
-import com.newsinsight.model.AnalysisRequest;
-import com.newsinsight.model.AnalysisResponse;
 import com.newsinsight.model.MergedNewsCluster;
 import com.newsinsight.model.NewsItem;
 import com.newsinsight.model.GeminiModel;
+import com.newsinsight.model.SnippetRequest;
 import com.newsinsight.service.NewsSystemService;
 import com.newsinsight.service.NewsService;
 import com.newsinsight.service.NewsCacheService;
@@ -35,6 +34,22 @@ public class NewsController {
     @GetMapping("/models")
     public List<GeminiModel> getModels() {
         return newsSystemService.listAvailableModels();
+    }
+
+    @PostMapping("/analyze/snippet")
+    public MergedNewsCluster analyzeSnippet(@RequestBody SnippetRequest request) {
+        // 1. Check Cache
+        MergedNewsCluster cached = newsCacheService.getCachedSnippet(request.link(), request.lang(), request.model());
+        if (cached != null) return cached;
+
+        // 2. Analyze
+        MergedNewsCluster result = newsSystemService.analyzeSnippet(request.title(), request.snippet(), request.lang(), request.model());
+
+        // 3. Cache Success
+        if (result != null && !result.topic().contains("Error")) {
+            newsCacheService.cacheSnippet(request.link(), request.lang(), request.model(), result);
+        }
+        return result;
     }
 
     @GetMapping("/news/merged")

@@ -30,11 +30,12 @@ public class NewsSystemService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    // Conservative fallback list using only highly reliable 2026 models
+    // Exact IDs from your screenshots for maximum reliability
     private static final List<String> FALLBACK_MODELS = List.of(
         "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-lite-001",
+        "gemini-2.0-flash-001",
         "gemini-2.5-flash",
-        "gemini-2.0-flash-lite",
         "gemini-2.0-flash"
     );
 
@@ -78,36 +79,37 @@ public class NewsSystemService {
     }
 
     public AnalysisResponse.AnalysisData analyzeText(String text) {
-        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
-            return new AnalysisResponse.AnalysisData("API Key is not configured.");
-        }
-        String prompt = """
-                Analyze the following news article text. Focus on current developments.
-                "%s"
-                Return a valid JSON object (and ONLY JSON, no markdown formatting) with the following specific fields:
-                {
-                    "summary": "A concise summary of the event",
-                    "economic_impact": "Specific potential impacts on the economy (markets, prices, jobs, etc.)",
-                    "global_impact": "Potential geopolitical or worldwide consequences",
-                    "impact_rating": 5, 
-                    "urgency": "Medium" 
-                }
-                """.formatted(text.replace("\"", "\\\"")); 
+        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) return new AnalysisResponse.AnalysisData("API Key Missing");
+        String prompt = "Analyze the following news text. Focus on current developments.\n\n" + text + "\n\nReturn JSON: {\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":5,\"urgency\":\"Medium\"}";
         try {
             ApiResult result = callGeminiApiWithFallback(prompt, null);
             return parseJsonFromAI(result.text());
-        } catch (Exception e) {
-            return new AnalysisResponse.AnalysisData("Analysis failed: " + e.getMessage());
-        }
+        } catch (Exception e) { return new AnalysisResponse.AnalysisData("Analysis failed: " + e.getMessage()); }
     }
 
-    private AnalysisResponse.AnalysisData parseJsonFromAI(String rawText) {
+    public MergedNewsCluster analyzeSnippet(String title, String snippet, String lang, String preferredModel) {
+        String prompt = String.format("""
+            Analyze this news snippet. FOCUS ON LATEST INFORMATION.
+            Title: %s
+            Content: %s
+            
+            1. TRANSLATION: Translate \"topic\", \"summary\", \"economic_impact\", \"global_impact\", and \"what_next\" into %s.
+            2. ANALYSIS: Provide synthesized summary, economic impact, global impact, rating (1-10), and prediction.
+            
+            Return ONLY JSON:
+            {\"topic\":\"...\",\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":\"8\",\"what_next\":\"...\"}
+            """, title, snippet, lang.equals("Chinese") ? "Simplified Chinese (zh-CN)" : lang);
+
         try {
-            String jsonText = rawText.replace("```json", "").replace("```", "").trim();
-            return objectMapper.readValue(jsonText, AnalysisResponse.AnalysisData.class);
+            ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
+            Map<String, Object> map = objectMapper.readValue(result.text().replace("```json", "").replace("```", "").trim(), new TypeReference<Map<String, Object>>(){});
+            return new MergedNewsCluster(
+                (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
+                (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
+                Collections.emptyList(), result.model()
+            );
         } catch (Exception e) {
-            System.err.println("Failed to parse JSON from AI: " + rawText);
-            return new AnalysisResponse.AnalysisData("Failed to parse AI response.");
+            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error");
         }
     }
 
@@ -118,30 +120,20 @@ public class NewsSystemService {
         List<NewsItem> validItems = items.stream()
                 .filter(item -> !item.title().startsWith("System Error") && !item.title().startsWith("No News Found"))
                 .collect(Collectors.toList());
-        if (validItems.isEmpty()) {
-            return List.of(new MergedNewsCluster("No Content to Analyze", "The news feed returned no valid articles.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "None"));
-        }
+        if (validItems.isEmpty()) return List.of(new MergedNewsCluster("No Content", "No valid articles found.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "None"));
+        
         StringBuilder itemsText = new StringBuilder();
-        for (NewsItem item : validItems) {
-            itemsText.append("- Title: ").append(item.title()).append("\nLink: ").append(item.link()).append("\nSnippet: ").append(item.summary()).append("\n\n");
-        }
+        for (NewsItem item : validItems) itemsText.append("- Title: ").append(item.title()).append("\nLink: ").append(item.link()).append("\nSnippet: ").append(item.summary()).append("\n\n");
         String fullText = itemsText.toString();
         if (fullText.length() > 30000) fullText = fullText.substring(0, 30000) + "...[TRUNCATED]";
 
-        String clusteringInstruction = shouldCluster 
-            ? "1. CLUSTERING: Group articles that are about the SAME event. Synthesize a single comprehensive summary. Prioritize LATEST info."
-            : "1. NO CLUSTERING: Treat each item separately.";
-
-        String prompt = """
-                You are an expert analyst. Analyze these news items. FOCUS ON LATEST INFORMATION.
-                %s
-                2. TRANSLATION: Translate \"topic\", \"summary\", \"economic_impact\", \"global_impact\", and \"what_next\" into %s.
-                3. ANALYSIS: For each group, provide summary, economic impact, global impact, impact rating (1-10), and prediction.
+        String prompt = String.format("""
+                Expert Analyst Task: Group articles about SAME event. Synthesize unified summary. LATEST INFO FIRST.
+                2. TRANSLATE: \"topic\", \"summary\", \"economic_impact\", \"global_impact\", \"what_next\" into %s.
                 Input:
                 %s
-                Output Schema (JSON Array):
-                [{"topic":"...","summary":"...","economic_impact":"...","global_impact":"...","impact_rating":"8","what_next":"...","related_links":["url1"]}]
-                """.formatted(clusteringInstruction, language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, fullText);
+                Output Schema: [{\"topic\":\"...\",\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":\"8\",\"what_next\":\"...\",\"related_links\":[\"url1\"]}]
+                """, language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, fullText);
 
         try {
             ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
@@ -169,12 +161,11 @@ public class NewsSystemService {
 
         List<String> modelsToTry = new ArrayList<>();
         if (preferredModel != null && !preferredModel.isEmpty()) modelsToTry.add(preferredModel);
-        for (String m : FALLBACK_MODELS) { if (!modelsToTry.contains(m)) modelsToTry.add(m); }
+        for (String m : FALLBACK_MODELS) if (!modelsToTry.contains(m)) modelsToTry.add(m);
 
         List<String> errors = new ArrayList<>();
         for (String model : modelsToTry) {
             try {
-                System.out.println("Trying Gemini Model: " + model);
                 String url = String.format(API_URL_TEMPLATE, model, apiKey);
                 ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
                 if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
@@ -183,13 +174,12 @@ public class NewsSystemService {
                     return new ApiResult(extracted, model);
                 }
             } catch (HttpClientErrorException e) {
-                String error = "Model " + model + ": " + e.getStatusCode();
-                errors.add(error);
-                if (e.getStatusCode().value() == 429 || e.getStatusCode().value() == 503 || e.getStatusCode().value() == 404) continue;
-                throw new RuntimeException("Critical API Error: " + e.getResponseBodyAsString());
-            } catch (Exception e) { 
-                errors.add("Model " + model + ": " + e.getMessage());
-            }
+                if (e.getStatusCode().value() == 429 || e.getStatusCode().value() == 503 || e.getStatusCode().value() == 404) {
+                    errors.add(model + ": " + e.getStatusCode());
+                    continue;
+                }
+                throw new RuntimeException("API Error (" + model + "): " + e.getResponseBodyAsString());
+            } catch (Exception e) { errors.add(model + ": " + e.getMessage()); }
         }
         throw new RuntimeException("All models failed. Attempts: " + String.join(" | ", errors));
     }
@@ -199,8 +189,15 @@ public class NewsSystemService {
             String jsonText = rawText.replace("```json", "").replace("```", "").trim();
             return objectMapper.readValue(jsonText, new TypeReference<List<MergedNewsCluster>>(){});
         } catch (Exception e) {
-            return List.of(new MergedNewsCluster("Analysis Error", "Failed to parse AI response.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "ParseError"));
+            return List.of(new MergedNewsCluster("Analysis Error", "Failed to parse JSON.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "ParseError"));
         }
+    }
+
+    private AnalysisResponse.AnalysisData parseJsonFromAI(String rawText) {
+        try {
+            String jsonText = rawText.replace("```json", "").replace("```", "").trim();
+            return objectMapper.readValue(jsonText, AnalysisResponse.AnalysisData.class);
+        } catch (Exception e) { return new AnalysisResponse.AnalysisData("Failed to parse response."); }
     }
 
     private String extractTextFromResponse(Map<String, Object> responseBody) {
