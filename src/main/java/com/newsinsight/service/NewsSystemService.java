@@ -111,7 +111,7 @@ public class NewsSystemService {
                     "impact_rating": 5, 
                     "urgency": "Medium" 
                 }
-                """.formatted(text.replace("\", "\\")); 
+                """.formatted(text.replace("\"", "\\\"")); 
 
         try {
             String rawText = callGeminiApiWithFallback(prompt, null);
