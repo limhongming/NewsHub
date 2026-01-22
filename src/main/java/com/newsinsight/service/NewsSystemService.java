@@ -30,14 +30,15 @@ public class NewsSystemService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    // List of models to try in order of preference (Updated for 2026 availability)
+    // Matches your provided screenshots for the best 2026 performance
     private static final List<String> FALLBACK_MODELS = List.of(
         "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-lite-001",
+        "gemini-2.0-flash-001",
         "gemini-2.5-flash",
-        "gemini-2.0-flash-lite",
         "gemini-2.0-flash",
         "gemini-2.5-pro",
-        "gemini-2.0-pro-exp"
+        "gemini-2.0-pro-exp-02-05"
     );
 
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
@@ -61,16 +62,17 @@ public class NewsSystemService {
                 List<Map<String, Object>> modelsList = (List<Map<String, Object>>) response.getBody().get("models");
                 if (modelsList != null) {
                     List<GeminiModel> geminiModels = new ArrayList<>();
-                    // Explicitly add the 2.5 flash-lite at the top if not returned by API
-                    // (Sometimes new models don't show up in listModels immediately)
-                    geminiModels.add(new GeminiModel("gemini-2.5-flash-lite", "v1beta", "Gemini 2.5 Flash-Lite", "Optimized for massive scale", 1000000, 65535));
+                    
+                    // Manually force-add the high volume models first so they always appear in dropdown
+                    geminiModels.add(new GeminiModel("gemini-2.5-flash-lite", "v1beta", "Gemini 2.5 Flash-Lite", "Highest Volume Option (1000 RPD)", 1000000, 65535));
+                    geminiModels.add(new GeminiModel("gemini-2.0-flash-lite-001", "v1beta", "Gemini 2.0 Flash-Lite 001", "Fast & High Quota", 1000000, 65535));
                     
                     for (Map<String, Object> m : modelsList) {
                         String name = (String) m.get("name"); 
                         if (name != null && name.contains("gemini")) {
                             String shortName = name.replace("models/", "");
-                            // Avoid adding duplicate flash-lite
-                            if (shortName.equals("gemini-2.5-flash-lite")) continue;
+                            // Avoid duplicates
+                            if (shortName.equals("gemini-2.5-flash-lite") || shortName.equals("gemini-2.0-flash-lite-001")) continue;
                             
                             geminiModels.add(new GeminiModel(
                                 shortName,
@@ -88,7 +90,6 @@ public class NewsSystemService {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        // Fallback if API fails
         return List.of(new GeminiModel("gemini-2.5-flash-lite", "v1beta", "Gemini 2.5 Flash-Lite", "High volume fallback", 1000000, 65535));
     }
 
@@ -98,7 +99,7 @@ public class NewsSystemService {
         }
         
         String prompt = """
-                Analyze the following news article text.
+                Analyze the following news article text. Focus on current developments.
                 
                 "%s"
                 
@@ -110,7 +111,7 @@ public class NewsSystemService {
                     "impact_rating": 5, 
                     "urgency": "Medium" 
                 }
-                """.formatted(text.replace("\"", "\\\"")); 
+                """.formatted(text.replace("\", "\\")); 
 
         try {
             String rawText = callGeminiApiWithFallback(prompt, null);
@@ -156,15 +157,15 @@ public class NewsSystemService {
         }
 
         String clusteringInstruction = shouldCluster 
-            ? "1. CLUSTERING: Group articles that are about the SAME event or directly related incidents. You MUST synthesize a single, comprehensive summary that combines unique details from ALL articles in the cluster."
+            ? "1. CLUSTERING: Group articles that are about the SAME event or directly related incidents. You MUST synthesize a single, comprehensive summary that combines unique details from ALL articles in the cluster. Prioritize the most recent information."
             : "1. NO CLUSTERING: Treat each news item as a completely separate topic. Do NOT merge them. Create one output object for each input item.";
 
         String prompt = """
-                You are an expert news analyst. Analyze the following news items.
+                You are an expert news analyst. Analyze the following news items. FOCUS ON LATEST INFORMATION.
                 
                 CRITICAL INSTRUCTIONS:
                 %s
-                2. TRANSLATION: You MUST translate the values of "topic", "summary", "economic_impact", "global_impact", and "what_next" into %s. Do NOT return English unless the target language is English.
+                2. TRANSLATION: You MUST translate the values of "topic", "summary", "economic_impact", "global_impact", and "what_next" into %s.
                 3. ANALYSIS: For each group (or item), provide a comprehensive summary, economic impact, global impact, impact rating (1-10), and a prediction of what happens next.
                 
                 Input News Items:
@@ -174,7 +175,7 @@ public class NewsSystemService {
                 [
                   {
                     "topic": "Translated Headline",
-                    "summary": "Translated detailed summary.",
+                    "summary": "Translated detailed synthesized summary.",
                     "economic_impact": "Translated economic analysis.",
                     "global_impact": "Translated geopolitical/global impact.",
                     "impact_rating": "8",
