@@ -25,7 +25,7 @@ public class NewsService {
     }
 
     public List<NewsItem> getCNNNews() {
-        return fetchNewsFromRss(CNN_RSS_FEED, 20);
+        return fetchNewsFromRss(CNN_RSS_FEED, 30);
     }
 
     private List<NewsItem> fetchNewsFromRss(String feedUrlStr, int limit) {

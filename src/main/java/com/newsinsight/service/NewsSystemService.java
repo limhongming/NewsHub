@@ -147,7 +147,7 @@ public class NewsSystemService {
         }
 
         String clusteringInstruction = shouldCluster 
-            ? "1. CLUSTERING: Group articles that are about the SAME event or directly related incidents. Do not leave related stories separate."
+            ? "1. CLUSTERING: Group articles that are about the SAME event or directly related incidents. You MUST synthesize a single, comprehensive summary that combines unique details from ALL articles in the cluster."
             : "1. NO CLUSTERING: Treat each news item as a completely separate topic. Do NOT merge them. Create one output object for each input item.";
 
         String prompt = """
