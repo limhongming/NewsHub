@@ -1,5 +1,7 @@
 package com.newsinsight.service;
 
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.newsinsight.model.AnalysisResponse;
@@ -27,13 +29,16 @@ public class NewsSystemService {
     // Using Gemini 2.5 Flash model
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=%s";
     private final RestTemplate restTemplate = new RestTemplate();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+            .configure(JsonParser.Feature.ALLOW_COMMENTS, true);
 
     public AnalysisResponse.AnalysisData analyzeText(String text) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
             return new AnalysisResponse.AnalysisData("API Key is not configured.");
         }
-
+        
+        // ... (analyzeText implementation remains same as prompt is simple) ...
         String prompt = """
                 Analyze the following news article text.
                 
@@ -44,10 +49,10 @@ public class NewsSystemService {
                     "summary": "A concise summary of the event",
                     "economic_impact": "Specific potential impacts on the economy (markets, prices, jobs, etc.)",
                     "global_impact": "Potential geopolitical or worldwide consequences",
-                    "impact_rating": 5, // A number from 1-10 (10 being massive global event, 1 being minor local news)
-                    "urgency": "Medium" // One of: "Low", "Medium", "High", "Critical"
+                    "impact_rating": 5, 
+                    "urgency": "Medium" 
                 }
-                """.formatted(text.replace("\"", "\\\"")); // Basic escape
+                """.formatted(text.replace("\"", "\\\"")); 
 
         // Construct Request Body
         Map<String, Object> part = Map.of("text", prompt);
@@ -78,7 +83,6 @@ public class NewsSystemService {
 
     private AnalysisResponse.AnalysisData parseJsonFromAI(String rawText) {
         try {
-            // Clean markdown if present
             String jsonText = rawText.replace("```json", "").replace("```", "").trim();
             return objectMapper.readValue(jsonText, AnalysisResponse.AnalysisData.class);
         } catch (Exception e) {
@@ -92,13 +96,11 @@ public class NewsSystemService {
             return Collections.emptyList();
         }
 
-        // Filter out system error or no news items to avoid confusing the AI
         List<NewsItem> validItems = items.stream()
                 .filter(item -> !item.title().startsWith("System Error") && !item.title().startsWith("No News Found"))
                 .collect(Collectors.toList());
 
         if (validItems.isEmpty()) {
-            // Return a dummy cluster so the user sees something other than "API Key missing"
             return List.of(new MergedNewsCluster(
                 "No Content to Analyze",
                 "The news feed returned no valid articles to analyze. Please try again later.",
@@ -137,9 +139,9 @@ public class NewsSystemService {
                     "summary": "Translated detailed summary of the event group.",
                     "economic_impact": "Translated economic analysis.",
                     "global_impact": "Translated geopolitical/global impact.",
-                    "impact_rating": "8", // 1-10 string
+                    "impact_rating": "8",
                     "what_next": "Translated prediction of what could happen next.",
-                    "related_links": ["url1", "url2"] // Keep original URLs
+                    "related_links": ["url1", "url2"]
                   }
                 ]
                 """.formatted(clusteringInstruction, language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, itemsText.toString());
@@ -175,7 +177,14 @@ public class NewsSystemService {
             return objectMapper.readValue(jsonText, new TypeReference<List<MergedNewsCluster>>(){});
         } catch (Exception e) {
             System.err.println("Failed to parse Cluster JSON: " + rawText);
-            return Collections.emptyList();
+            e.printStackTrace();
+            // Return error object so user sees the raw failure
+            return List.of(new MergedNewsCluster(
+                "Analysis Error",
+                "Failed to parse AI response. Raw output logged on server.",
+                "N/A", "N/A", "0", "N/A",
+                Collections.emptyList()
+            ));
         }
     }
 
