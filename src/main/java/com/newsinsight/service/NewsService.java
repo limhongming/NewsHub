@@ -18,7 +18,7 @@ import java.util.List;
 public class NewsService {
 
     private static final String BBC_RSS_FEED = "https://feeds.bbci.co.uk/news/rss.xml";
-    private static final String CNN_RSS_FEED = "http://rss.cnn.com/rss/cnn_topstories.rss";
+    private static final String CNN_RSS_FEED = "https://rss.cnn.com/rss/cnn_topstories.rss"; // Changed to HTTPS
 
     public List<NewsItem> getTopNews() {
         return fetchNewsFromRss(BBC_RSS_FEED, 10);
@@ -33,9 +33,11 @@ public class NewsService {
         try {
             URL url = new URL(feedUrlStr);
             java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
+            // Use a very standard, widely accepted User-Agent
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(10000);
+            connection.setInstanceFollowRedirects(true);
 
             // Use BufferedInputStream to ensure reliable stream reading
             try (java.io.InputStream is = new java.io.BufferedInputStream(connection.getInputStream())) {
@@ -43,21 +45,30 @@ public class NewsService {
                 SyndFeed feed = input.build(new XmlReader(is));
 
                 List<SyndEntry> entries = feed.getEntries();
+                
                 if (entries == null || entries.isEmpty()) {
-                     System.err.println("Warning: RSS Feed parsed successfully but contains no entries: " + feedUrlStr);
+                    System.err.println("Warning: RSS Feed parsed successfully but contains no entries: " + feedUrlStr);
+                    newsItems.add(new NewsItem(
+                        "No News Found",
+                        "#",
+                        new java.util.Date(),
+                        "The RSS feed (" + feedUrlStr + ") was accessed but returned no articles. Parsing issue or empty feed."
+                    ));
                 } else {
-                     System.out.println("Successfully parsed " + entries.size() + " entries from " + feedUrlStr);
+                    System.out.println("Successfully parsed " + entries.size() + " entries from " + feedUrlStr);
                 }
 
-                for (int i = 0; i < Math.min(entries.size(), limit); i++) {
-                    SyndEntry entry = entries.get(i);
-                    String description = entry.getDescription() != null ? entry.getDescription().getValue() : "";
-                    newsItems.add(new NewsItem(
-                            entry.getTitle(),
-                            entry.getLink(),
-                            entry.getPublishedDate(),
-                            description
-                    ));
+                if (entries != null) {
+                    for (int i = 0; i < Math.min(entries.size(), limit); i++) {
+                        SyndEntry entry = entries.get(i);
+                        String description = entry.getDescription() != null ? entry.getDescription().getValue() : "";
+                        newsItems.add(new NewsItem(
+                                entry.getTitle(),
+                                entry.getLink(),
+                                entry.getPublishedDate(),
+                                description
+                        ));
+                    }
                 }
             }
         } catch (Exception e) {
@@ -67,7 +78,7 @@ public class NewsService {
                 "System Error: Failed to fetch news",
                 "#",
                 new java.util.Date(),
-                "Error details: " + e.toString() + ". Try refreshing or checking server logs."
+                "Error details: " + e.toString() + " (" + feedUrlStr + ")"
             ));
         }
         return newsItems;
