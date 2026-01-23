@@ -6,7 +6,6 @@ import com.newsinsight.model.GeminiModel;
 import com.newsinsight.model.SnippetRequest;
 import com.newsinsight.model.AnalysisRequest;
 import com.newsinsight.model.AnalysisResponse;
-import com.newsinsight.model.AnalysisResponse.AnalysisData;
 import com.newsinsight.service.NewsSystemService;
 import com.newsinsight.service.NewsService;
 import com.newsinsight.service.NewsCacheService;
@@ -98,7 +97,7 @@ public class NewsController {
             // 1. Scrape
             String content = newsService.scrapeArticleContent(request.url());
             
-            if (content.isEmpty()) {
+            if (content == null || content.isEmpty()) {
                 return ResponseEntity.badRequest().body("Could not scrape content from URL.");
             }
 

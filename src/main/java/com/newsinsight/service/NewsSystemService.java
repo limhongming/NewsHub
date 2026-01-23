@@ -47,7 +47,18 @@ public class NewsSystemService {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(JsonParser.Feature.ALLOW_COMMENTS, true);
 
-    private record ApiResult(String text, String model) {}
+    private static class ApiResult {
+        private final String text;
+        private final String model;
+        
+        public ApiResult(String text, String model) {
+            this.text = text;
+            this.model = model;
+        }
+        
+        public String text() { return text; }
+        public String model() { return model; }
+    }
 
     public List<GeminiModel> listAvailableModels() {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
@@ -57,24 +68,41 @@ public class NewsSystemService {
             String url = String.format(MODELS_API_URL, apiKey);
             ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, null, Map.class);
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                List<Map<String, Object>> modelsList = (List<Map<String, Object>>) response.getBody().get("models");
-                if (modelsList != null) {
+                Object modelsObj = response.getBody().get("models");
+                if (modelsObj instanceof List) {
+                    List<?> modelsList = (List<?>) modelsObj;
                     List<GeminiModel> geminiModels = new ArrayList<>();
                     geminiModels.add(new GeminiModel("gemini-2.5-flash-lite", "v1beta", "Gemini 2.5 Flash-Lite", "Highest Volume (1000 RPD)", 1000000, 65535));
-                    for (Map<String, Object> m : modelsList) {
-                        String name = (String) m.get("name"); 
-                        if (name != null && name.contains("gemini")) {
-                            String shortName = name.replace("models/", "");
-                            if (shortName.equals("gemini-2.5-flash-lite")) continue;
-                            geminiModels.add(new GeminiModel(shortName, (String) m.get("version"), (String) m.get("displayName"), (String) m.get("description"),
-                                m.get("inputTokenLimit") != null ? (int) m.get("inputTokenLimit") : 0,
-                                m.get("outputTokenLimit") != null ? (int) m.get("outputTokenLimit") : 0));
+                    for (Object obj : modelsList) {
+                        if (obj instanceof Map) {
+                            Map<?, ?> m = (Map<?, ?>) obj;
+                            String name = (String) m.get("name"); 
+                            if (name != null && name.contains("gemini")) {
+                                String shortName = name.replace("models/", "");
+                                if (shortName.equals("gemini-2.5-flash-lite")) continue;
+                                Object version = m.get("version");
+                                Object displayName = m.get("displayName");
+                                Object description = m.get("description");
+                                Object inputTokenLimit = m.get("inputTokenLimit");
+                                Object outputTokenLimit = m.get("outputTokenLimit");
+                                
+                                geminiModels.add(new GeminiModel(
+                                    shortName, 
+                                    version != null ? (String) version : "", 
+                                    displayName != null ? (String) displayName : "",
+                                    description != null ? (String) description : "",
+                                    inputTokenLimit != null ? ((Number) inputTokenLimit).intValue() : 0,
+                                    outputTokenLimit != null ? ((Number) outputTokenLimit).intValue() : 0
+                                ));
+                            }
                         }
                     }
                     return geminiModels;
                 }
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) { 
+            e.printStackTrace(); 
+        }
         return List.of(new GeminiModel("gemini-2.5-flash-lite", "v1beta", "Gemini 2.5 Flash-Lite", "Manual Fallback", 1000000, 65535));
     }
 
