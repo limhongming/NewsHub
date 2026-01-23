@@ -17,6 +17,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -112,10 +113,25 @@ public class NewsSystemService {
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
     private static final String MODELS_API_URL = "https://generativelanguage.googleapis.com/v1beta/models?key=%s";
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+    private final RestTemplate healthCheckRestTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+    
+    public NewsSystemService() {
+        // Configure main RestTemplate with longer timeouts for content generation
+        this.restTemplate = createRestTemplate(10000, 60000); // 10s connect, 60s read
+        // Configure health check RestTemplate with short timeouts
+        this.healthCheckRestTemplate = createRestTemplate(5000, 10000); // 5s connect, 10s read
+    }
+    
+    private RestTemplate createRestTemplate(int connectTimeout, int readTimeout) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(connectTimeout);
+        requestFactory.setReadTimeout(readTimeout);
+        return new RestTemplate(requestFactory);
+    }
     
     // Request coalescing: track pending requests by prompt hash
     private final ConcurrentMap<String, Object> pendingRequests = new ConcurrentHashMap<>();
@@ -725,19 +741,49 @@ public class NewsSystemService {
             return result;
         }
         try {
-            // Make a lightweight call to list models (which is the same as the models endpoint)
+            // Make a lightweight call to list models with health check RestTemplate (shorter timeouts)
             String url = String.format(MODELS_API_URL, apiKey);
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, null, Map.class);
+            ResponseEntity<Map> response = healthCheckRestTemplate.exchange(url, HttpMethod.GET, null, Map.class);
+            
             if (response.getStatusCode().is2xxSuccessful()) {
                 result.put("status", "UP");
                 result.put("message", "Gemini API is accessible.");
+            } else if (response.getStatusCode().value() == 429) {
+                result.put("status", "DOWN");
+                result.put("message", "Rate limit exceeded (429). Please wait before trying again.");
+            } else if (response.getStatusCode().value() == 404) {
+                result.put("status", "DOWN");
+                result.put("message", "API endpoint not found (404). The Gemini API may have changed.");
+            } else if (response.getStatusCode().value() == 503) {
+                result.put("status", "DOWN");
+                result.put("message", "Service unavailable (503). Gemini API is temporarily down.");
             } else {
                 result.put("status", "DOWN");
-                result.put("message", "Gemini API returned non-2xx status: " + response.getStatusCode());
+                result.put("message", "Gemini API returned error: " + response.getStatusCode());
+            }
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            // This includes connect timeout, read timeout, etc.
+            if (e.getMessage() != null && e.getMessage().contains("timeout")) {
+                result.put("status", "DOWN");
+                result.put("message", "Connection timeout. Gemini API is not responding within 10 seconds.");
+            } else {
+                result.put("status", "DOWN");
+                result.put("message", "Network error: " + e.getMessage());
+            }
+        } catch (org.springframework.web.client.HttpClientErrorException e) {
+            if (e.getStatusCode().value() == 429) {
+                result.put("status", "DOWN");
+                result.put("message", "Rate limit exceeded (429). Please wait before trying again.");
+            } else if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
+                result.put("status", "DOWN");
+                result.put("message", "Authentication failed (API key invalid). Please check gemini.api.key.");
+            } else {
+                result.put("status", "DOWN");
+                result.put("message", "HTTP error " + e.getStatusCode() + ": " + e.getResponseBodyAsString());
             }
         } catch (Exception e) {
             result.put("status", "DOWN");
-            result.put("message", "Gemini API is unavailable: " + e.getMessage());
+            result.put("message", "Gemini API is unavailable: " + e.getClass().getSimpleName() + " - " + e.getMessage());
         }
         return result;
     }
