@@ -36,33 +36,49 @@ public class NewsSystemService {
 
     // Official Gemini models - production-ready, stable models only
     // Ordered by cost/performance: free/cheaper models first, then premium
+    // Version numbers are explicitly included in model names
     private static final List<String> FALLBACK_MODELS = List.of(
         // Free tier models (highest rate limits, lowest cost)
-        "gemini-2.0-flash-lite",      // Official free tier
-        "gemini-2.0-flash-lite-001",  // Alternative free tier variant
-        "gemini-2.5-flash-lite",      // Latest free tier with improved capabilities
+        "gemini-2.0-flash-lite",      // Version 2.0 - Official free tier
+        "gemini-2.0-flash-lite-001",  // Version 2.0.001 - Alternative free tier variant
+        "gemini-2.5-flash-lite",      // Version 2.5 - Latest free tier with improved capabilities
         
         // Standard tier models (good balance of cost and performance)
-        "gemini-2.0-flash",           // Official standard tier
-        "gemini-2.0-flash-001",       // Alternative standard variant
-        "gemini-2.5-flash",           // Latest premium with best performance
+        "gemini-2.0-flash",           // Version 2.0 - Official standard tier
+        "gemini-2.0-flash-001",       // Version 2.0.001 - Alternative standard variant
+        "gemini-2.5-flash",           // Version 2.5 - Latest premium with best performance
         
         // Pro models (higher cost, better for complex tasks)
-        "gemini-2.0-pro",             // Pro version for complex reasoning
-        "gemini-1.5-pro"              // Legacy pro model (if still available)
+        "gemini-2.0-pro",             // Version 2.0 - Pro version for complex reasoning
+        "gemini-1.5-pro",             // Version 1.5 - Legacy pro model (if still available)
+        "gemini-1.5-flash"            // Version 1.5 - Flash model from previous generation
     );
     
     // Model cost/priority mapping (lower number = higher priority for cost savings)
-    // Updated to include all official models
+    // Updated to include all official models with version clarity
     private static final Map<String, Integer> MODEL_PRIORITY = Map.of(
-        "gemini-2.0-flash-lite", 1,
-        "gemini-2.0-flash-lite-001", 2,
-        "gemini-2.5-flash-lite", 3,
-        "gemini-2.0-flash", 4,
-        "gemini-2.0-flash-001", 5,
-        "gemini-2.5-flash", 6,
-        "gemini-2.0-pro", 7,
-        "gemini-1.5-pro", 8
+        "gemini-2.0-flash-lite", 1,      // v2.0
+        "gemini-2.0-flash-lite-001", 2,  // v2.0.001
+        "gemini-2.5-flash-lite", 3,      // v2.5
+        "gemini-2.0-flash", 4,           // v2.0
+        "gemini-2.0-flash-001", 5,       // v2.0.001
+        "gemini-2.5-flash", 6,           // v2.5
+        "gemini-2.0-pro", 7,             // v2.0
+        "gemini-1.5-pro", 8,             // v1.5
+        "gemini-1.5-flash", 9            // v1.5
+    );
+    
+    // Model version mapping for display purposes
+    private static final Map<String, String> MODEL_VERSIONS = Map.of(
+        "gemini-2.0-flash-lite", "2.0",
+        "gemini-2.0-flash-lite-001", "2.0.001",
+        "gemini-2.5-flash-lite", "2.5",
+        "gemini-2.0-flash", "2.0",
+        "gemini-2.0-flash-001", "2.0.001",
+        "gemini-2.5-flash", "2.5",
+        "gemini-2.0-pro", "2.0",
+        "gemini-1.5-pro", "1.5",
+        "gemini-1.5-flash", "1.5"
     );
     
     // Official model patterns - used to filter experimental/preview models
@@ -199,17 +215,28 @@ public class NewsSystemService {
     }
     
     private String getDisplayNameForModel(String modelName) {
-        if (modelName.contains("flash-lite")) return "Gemini Flash Lite";
-        if (modelName.contains("flash")) return "Gemini Flash";
-        if (modelName.contains("pro")) return "Gemini Pro";
-        return "Gemini Model";
+        String version = MODEL_VERSIONS.getOrDefault(modelName, extractVersionFromName(modelName));
+        if (modelName.contains("flash-lite")) return "Gemini Flash Lite v" + version;
+        if (modelName.contains("flash")) return "Gemini Flash v" + version;
+        if (modelName.contains("pro")) return "Gemini Pro v" + version;
+        return "Gemini Model v" + version;
     }
     
     private String getDescriptionForModel(String modelName) {
-        if (modelName.contains("2.5")) return "Latest generation with improved capabilities";
-        if (modelName.contains("2.0")) return "Current stable version";
-        if (modelName.contains("1.5")) return "Previous generation, still supported";
-        return "Official Gemini model";
+        String version = MODEL_VERSIONS.getOrDefault(modelName, extractVersionFromName(modelName));
+        if (modelName.contains("2.5")) return "Latest generation (v" + version + ") with improved capabilities";
+        if (modelName.contains("2.0")) return "Current stable version (v" + version + ")";
+        if (modelName.contains("1.5")) return "Previous generation (v" + version + "), still supported";
+        return "Official Gemini model (v" + version + ")";
+    }
+    
+    private String extractVersionFromName(String modelName) {
+        // Extract version from model name like "gemini-2.5-flash-lite" -> "2.5"
+        if (modelName.contains("2.5")) return "2.5";
+        if (modelName.contains("2.0")) return "2.0";
+        if (modelName.contains("1.5")) return "1.5";
+        if (modelName.contains("1.0")) return "1.0";
+        return "1.0";
     }
     
     private int getDefaultInputTokens(String modelName) {
