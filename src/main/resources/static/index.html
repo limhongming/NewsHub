@@ -269,6 +269,25 @@
             return url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
         }
 
+        function getCachedClusters(tab, lang, model) {
+            const key = `clusters_${tab}_${lang}_${model}`;
+            const item = localStorage.getItem(key);
+            if (item) {
+                const { clusters, timestamp } = JSON.parse(item);
+                // Cache for 5 minutes (300000 ms) to avoid stale data
+                if (Date.now() - timestamp < 300000) {
+                    return { clusters, timestamp };
+                }
+            }
+            return null;
+        }
+
+        function setCachedClusters(tab, lang, model, clusters) {
+            const key = `clusters_${tab}_${lang}_${model}`;
+            const item = JSON.stringify({ clusters, timestamp: Date.now() });
+            localStorage.setItem(key, item);
+        }
+
         function showStatusBar(tab, message, isProcessing) {
             const bar = document.getElementById(tab + '-status-bar');
             bar.classList.remove('d-none');
@@ -411,7 +430,7 @@
             container.appendChild(card);
         }
 
-        async function loadFeed(tabName, rawEndpoint, aiEndpoint) {
+        async function loadFeed(tabName, rawEndpoint, aiEndpoint, forceRefresh = false) {
             const container = document.getElementById(tabName + '-container');
             const lang = document.getElementById('lang-select').value;
             const model = document.getElementById('model-select').value;
@@ -421,82 +440,57 @@
                 const rawItems = await rawResponse.json();
                 const isBBC = tabName === 'bbc';
                 renderRawItems(container, rawItems, isBBC);
-                
-                // Health check: test if Gemini API is available before attempting analysis
-                showStatusBar(tabName, 'Checking AI service availability...', true);
-                let healthCheckPassed = false;
-                let healthMessage = '';
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000);
-                    const healthResponse = await fetch('/api/health', { signal: controller.signal });
-                    
-                    // Clear the timeout since we got a response
-                    clearTimeout(timeoutId);
-                    
-                    // Try to parse JSON regardless of status
-                    let health;
-                    try {
-                        health = await healthResponse.json();
-                    } catch (parseError) {
-                        // If JSON parsing fails, create a generic error object
-                        health = { 
-                            status: 'DOWN', 
-                            message: `Invalid response from server (Status ${healthResponse.status}: ${healthResponse.statusText})`
-                        };
-                    }
-                    
-                    // Check if the health check passed
-                    if (healthResponse.ok && health.status === 'UP') {
-                        healthCheckPassed = true;
-                        healthMessage = health.message;
-                        console.log('Health check passed:', healthMessage);
-                    } else {
-                        // Health check failed
-                        healthMessage = health.message || `Server returned status ${healthResponse.status}: ${healthResponse.statusText}`;
-                        console.error('Health check failed:', healthMessage);
-                        showStatusBar(tabName, 'AI service unavailable: ' + healthMessage, false);
-                    }
-                } catch (error) {
-                    if (error.name === 'AbortError') {
-                        healthMessage = 'Health check timed out after 5 seconds. Gemini API is not responding.';
-                    } else {
-                        healthMessage = 'Health check failed: ' + error.message;
-                    }
-                    console.error('Health check failed:', error);
-                    showStatusBar(tabName, healthMessage, false);
-                }
-                
-                if (!healthCheckPassed) {
-                    // Update all loading placeholders to show health check failure
-                    const loaders = container.querySelectorAll('.loading-label');
-                    loaders.forEach(l => l.innerHTML = `<span class="text-danger">AI Analysis: ${healthMessage}</span>`);
-                    updateCardsWithClusters(container, [], isBBC);
-                    return;
-                }
 
-                showStatusBar(tabName, `AI (${model}) is analyzing & translating to ${lang}...`, true);
+                // Check cache if not forcing refresh
+                if (!forceRefresh) {
+                    const cached = getCachedClusters(tabName, lang, model);
+                    if (cached) {
+                        updateCardsWithClusters(container, cached.clusters, isBBC);
+                        showStatusBar(tabName, `Using cached analysis (${new Date(cached.timestamp).toLocaleTimeString()})`, false);
+                        return;
+                    }
+                }
+                
+                // Try to get AI analysis (cached or fresh)
+                showStatusBar(tabName, `Fetching AI analysis...`, true);
                 const aiResponse = await fetch(`${aiEndpoint}?lang=${lang}&model=${model}`);
-                const clusters = await aiResponse.json();
-                updateCardsWithClusters(container, clusters, isBBC);
-                if (clusters.length > 0) {
-                    if (clusters[0].topic.includes('Error')) showStatusBar(tabName, clusters[0].topic + ': ' + clusters[0].summary, false);
-                    else showStatusBar(tabName, `Analysis Complete. (${clusters.length} topics found)`, false);
+                if (aiResponse.ok) {
+                    const clusters = await aiResponse.json();
+                    // Cache the clusters if they are valid
+                    if (clusters.length > 0 && !clusters[0].topic.includes('Error')) {
+                        setCachedClusters(tabName, lang, model, clusters);
+                    }
+                    updateCardsWithClusters(container, clusters, isBBC);
+                    if (clusters.length > 0) {
+                        if (clusters[0].topic.includes('Error')) {
+                            showStatusBar(tabName, clusters[0].topic + ': ' + clusters[0].summary, false);
+                        } else {
+                            showStatusBar(tabName, `Analysis Complete. (${clusters.length} topics found)`, false);
+                        }
+                    } else {
+                        showStatusBar(tabName, 'Analysis returned no results.', false);
+                        updateCardsWithClusters(container, [], isBBC);
+                    }
                 } else {
-                    showStatusBar(tabName, 'Analysis returned no results.', false);
-                    updateCardsWithClusters(container, [], isBBC); 
+                    // AI analysis fetch failed
+                    const errorText = await aiResponse.text();
+                    console.error('AI analysis fetch failed:', errorText);
+                    const loaders = container.querySelectorAll('.loading-label');
+                    loaders.forEach(l => l.innerHTML = `<span class="text-danger">AI Analysis: Failed to load (${aiResponse.status})</span>`);
+                    showStatusBar(tabName, 'Analysis failed: ' + errorText, false);
                 }
             } catch (error) {
                 console.error(error);
                 showStatusBar(tabName, 'Error: ' + error.message, false);
-                updateCardsWithClusters(container, [], isBBC); 
+                const loaders = container.querySelectorAll('.loading-label');
+                loaders.forEach(l => l.innerHTML = `<span class="text-danger">AI Analysis: Network error</span>`);
             }
         }
 
-        function loadBBCMerged() { loadFeed('bbc', '/api/news', '/api/news/bbc/merged'); }
-        function loadCNNMerged() { loadFeed('cnn', '/api/news/cnn', '/api/news/merged'); }
+        function loadBBCMerged(forceRefresh = false) { loadFeed('bbc', '/api/news', '/api/news/bbc/merged', forceRefresh); }
+        function loadCNNMerged(forceRefresh = false) { loadFeed('cnn', '/api/news/cnn', '/api/news/merged', forceRefresh); }
         function switchTab(tab) { currentTab = tab; if (tab === 'bbc') loadBBCMerged(); if (tab === 'cnn') loadCNNMerged(); }
-        function refreshCurrentTab() { if (currentTab === 'bbc') loadBBCMerged(); else loadCNNMerged(); }
+        function refreshCurrentTab() { if (currentTab === 'bbc') loadBBCMerged(true); else loadCNNMerged(true); }
 
         async function openAnalysisModal(title, url) {
             const loader = document.getElementById('global-loader');
