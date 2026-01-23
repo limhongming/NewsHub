@@ -139,7 +139,7 @@ public class NewsSystemService {
     
     // Rate limiting tracking
     private volatile long lastRateLimitTime = 0;
-    private static final long RATE_LIMIT_COOLDOWN_MS = 60000; // 1 minute cooldown after rate limit
+    private static final long RATE_LIMIT_COOLDOWN_MS = 5000; // 5 seconds cooldown after rate limit
     private static final int MAX_RETRIES = 2; // Reduced retries to avoid hitting rate limits
     private static final long INITIAL_RETRY_DELAY_MS = 5000; // Increased to 5 seconds
     private static final long MAX_RETRY_DELAY_MS = 30000; // Increased to 30 seconds
@@ -386,9 +386,9 @@ public class NewsSystemService {
                     results.add(analysis);
                 }
                 
-                // Add delay between articles to respect rate limits (2-5 seconds)
+                // Add delay between articles to respect rate limits (4-6 seconds for 15 RPM limit)
                 if (i < items.size() - 1) {
-                    long delay = 2000 + (long)(Math.random() * 3000); // 2-5 seconds
+                    long delay = 4000 + (long)(Math.random() * 2000); // 4-6 seconds (15 RPM)
                     System.out.println("DEBUG: Waiting " + delay + "ms before next article...");
                     try {
                         Thread.sleep(delay);
