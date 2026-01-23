@@ -731,19 +731,32 @@ public class NewsSystemService {
 
     /**
      * Health check for Gemini API.
-     * Returns a map with status and message.
+     * Returns a map with status, message, and raw Gemini API response.
      */
     public Map<String, String> checkGeminiHealth() {
         Map<String, String> result = new HashMap<>();
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
             result.put("status", "DOWN");
             result.put("message", "API key is not configured. Please set gemini.api.key in application.properties.");
+            result.put("rawResponse", "{}");
             return result;
         }
         try {
             // Make a lightweight call to list models with health check RestTemplate (shorter timeouts)
             String url = String.format(MODELS_API_URL, apiKey);
             ResponseEntity<Map> response = healthCheckRestTemplate.exchange(url, HttpMethod.GET, null, Map.class);
+            
+            // Add raw response (as JSON string) to result
+            String rawResponseJson = "{}";
+            if (response.getBody() != null) {
+                try {
+                    rawResponseJson = objectMapper.writeValueAsString(response.getBody());
+                } catch (Exception e) {
+                    rawResponseJson = "{\"error\": \"Failed to serialize response body\"}";
+                }
+            }
+            result.put("rawResponse", rawResponseJson);
+            result.put("httpStatus", String.valueOf(response.getStatusCode().value()));
             
             if (response.getStatusCode().is2xxSuccessful()) {
                 result.put("status", "UP");
@@ -770,7 +783,12 @@ public class NewsSystemService {
                 result.put("status", "DOWN");
                 result.put("message", "Network error: " + e.getMessage());
             }
+            result.put("rawResponse", "{\"error\": \"" + e.getClass().getSimpleName() + "\", \"message\": \"" + e.getMessage().replace("\"", "\\\"") + "\"}");
+            result.put("httpStatus", "0");
         } catch (org.springframework.web.client.HttpClientErrorException e) {
+            String rawResponse = e.getResponseBodyAsString();
+            result.put("rawResponse", rawResponse != null ? rawResponse : "{}");
+            result.put("httpStatus", String.valueOf(e.getStatusCode().value()));
             if (e.getStatusCode().value() == 429) {
                 result.put("status", "DOWN");
                 result.put("message", "Rate limit exceeded (429). Please wait before trying again.");
@@ -779,11 +797,13 @@ public class NewsSystemService {
                 result.put("message", "Authentication failed (API key invalid). Please check gemini.api.key.");
             } else {
                 result.put("status", "DOWN");
-                result.put("message", "HTTP error " + e.getStatusCode() + ": " + e.getResponseBodyAsString());
+                result.put("message", "HTTP error " + e.getStatusCode() + ": " + rawResponse);
             }
         } catch (Exception e) {
             result.put("status", "DOWN");
             result.put("message", "Gemini API is unavailable: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            result.put("rawResponse", "{\"error\": \"" + e.getClass().getSimpleName() + "\", \"message\": \"" + e.getMessage().replace("\"", "\\\"") + "\"}");
+            result.put("httpStatus", "0");
         }
         return result;
     }
