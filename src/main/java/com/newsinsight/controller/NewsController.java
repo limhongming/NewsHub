@@ -148,7 +148,7 @@ public class NewsController {
         return newsSystemService.getApiUsageStats();
     }
 
-    @GetMapping("/api/health")
+    @GetMapping("/health")
     public Map<String, String> getGeminiHealth() {
         return newsSystemService.checkGeminiHealth();
     }
