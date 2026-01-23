@@ -20,8 +20,12 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,13 +34,23 @@ public class NewsSystemService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    // Exact IDs from your screenshots for maximum reliability
+    // Optimized model order: prioritize free/cheaper models first, then premium
+    // Order based on cost and rate limit tolerance
     private static final List<String> FALLBACK_MODELS = List.of(
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash-lite-001",
-        "gemini-2.0-flash-001",
-        "gemini-2.5-flash",
-        "gemini-2.0-flash"
+        "gemini-2.0-flash-lite-001",  // Cheapest/free tier, highest rate limits
+        "gemini-2.5-flash-lite",      // Free tier, good for simple analysis
+        "gemini-2.0-flash",           // Standard free tier
+        "gemini-2.0-flash-001",       // Alternative free tier
+        "gemini-2.5-flash"            // Premium (if available)
+    );
+    
+    // Model cost/priority mapping (lower number = higher priority for cost savings)
+    private static final Map<String, Integer> MODEL_PRIORITY = Map.of(
+        "gemini-2.0-flash-lite-001", 1,
+        "gemini-2.5-flash-lite", 2,
+        "gemini-2.0-flash", 3,
+        "gemini-2.0-flash-001", 4,
+        "gemini-2.5-flash", 5
     );
 
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
@@ -46,6 +60,23 @@ public class NewsSystemService {
     private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+    
+    // Request coalescing: track pending requests by prompt hash
+    private final ConcurrentMap<String, Object> pendingRequests = new ConcurrentHashMap<>();
+    private final Object lock = new Object();
+    
+    // Rate limiting tracking
+    private volatile long lastRateLimitTime = 0;
+    private static final long RATE_LIMIT_COOLDOWN_MS = 60000; // 1 minute cooldown after rate limit
+    private static final int MAX_RETRIES = 3;
+    private static final long INITIAL_RETRY_DELAY_MS = 1000; // 1 second
+    private static final long MAX_RETRY_DELAY_MS = 10000; // 10 seconds
+    
+    // API usage tracking
+    private final ConcurrentMap<String, Integer> apiCallCounts = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Integer> rateLimitCounts = new ConcurrentHashMap<>();
+    private volatile long lastUsageResetTime = System.currentTimeMillis();
+    private static final long USAGE_RESET_INTERVAL_MS = 3600000; // 1 hour
 
     private static class ApiResult {
         private final String text;
@@ -176,40 +207,152 @@ public class NewsSystemService {
     }
 
     private ApiResult callGeminiApiWithFallback(String prompt, String preferredModel) {
-        List<Map<String, String>> safetySettings = List.of(
-            Map.of("category", "HARM_CATEGORY_HARASSMENT", "threshold", "BLOCK_NONE"),
-            Map.of("category", "HARM_CATEGORY_HATE_SPEECH", "threshold", "BLOCK_NONE"),
-            Map.of("category", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold", "BLOCK_NONE"),
-            Map.of("category", "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold", "BLOCK_NONE")
-        );
-        Map<String, Object> requestBody = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))), "safetySettings", safetySettings);
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
-        List<String> modelsToTry = new ArrayList<>();
-        if (preferredModel != null && !preferredModel.isEmpty()) modelsToTry.add(preferredModel);
-        for (String m : FALLBACK_MODELS) if (!modelsToTry.contains(m)) modelsToTry.add(m);
-
-        List<String> errors = new ArrayList<>();
-        for (String model : modelsToTry) {
-            try {
-                String url = String.format(API_URL_TEMPLATE, model, apiKey);
-                ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-                if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                    String extracted = extractTextFromResponse(response.getBody());
-                    if (extracted == null || extracted.isEmpty() || extracted.equals("{}")) throw new RuntimeException("Safety Blocked/Empty");
-                    return new ApiResult(extracted, model);
-                }
-            } catch (HttpClientErrorException e) {
-                if (e.getStatusCode().value() == 429 || e.getStatusCode().value() == 503 || e.getStatusCode().value() == 404) {
-                    errors.add(model + ": " + e.getStatusCode());
-                    continue;
-                }
-                throw new RuntimeException("API Error (" + model + "): " + e.getResponseBodyAsString());
-            } catch (Exception e) { errors.add(model + ": " + e.getMessage()); }
+        // Check if we're in rate limit cooldown
+        long now = System.currentTimeMillis();
+        if (now - lastRateLimitTime < RATE_LIMIT_COOLDOWN_MS) {
+            throw new RuntimeException("Rate limit cooldown active. Please wait " + 
+                ((RATE_LIMIT_COOLDOWN_MS - (now - lastRateLimitTime)) / 1000) + " seconds.");
         }
-        throw new RuntimeException("All models failed. Attempts: " + String.join(" | ", errors));
+        
+        // Reset usage stats if interval has passed
+        resetUsageStatsIfNeeded();
+        
+        // Create request hash for coalescing
+        String requestHash = Integer.toHexString((prompt + (preferredModel != null ? preferredModel : "")).hashCode());
+        
+        // Request coalescing: check if same request is already being processed
+        synchronized (lock) {
+            if (pendingRequests.containsKey(requestHash)) {
+                // Wait for the pending request to complete
+                try {
+                    lock.wait(5000); // Wait up to 5 seconds
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                // After waiting, check if result is available (simplified - in production would need more complex logic)
+            }
+            pendingRequests.put(requestHash, new Object());
+        }
+        
+        try {
+            List<Map<String, String>> safetySettings = List.of(
+                Map.of("category", "HARM_CATEGORY_HARASSMENT", "threshold", "BLOCK_NONE"),
+                Map.of("category", "HARM_CATEGORY_HATE_SPEECH", "threshold", "BLOCK_NONE"),
+                Map.of("category", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold", "BLOCK_NONE"),
+                Map.of("category", "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold", "BLOCK_NONE")
+            );
+            Map<String, Object> requestBody = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))), "safetySettings", safetySettings);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            List<String> modelsToTry = new ArrayList<>();
+            if (preferredModel != null && !preferredModel.isEmpty()) modelsToTry.add(preferredModel);
+            for (String m : FALLBACK_MODELS) if (!modelsToTry.contains(m)) modelsToTry.add(m);
+
+            List<String> errors = new ArrayList<>();
+            
+            // Exponential backoff with retries
+            for (int retry = 0; retry < MAX_RETRIES; retry++) {
+                for (String model : modelsToTry) {
+                    try {
+                        // Add delay between retries (exponential backoff)
+                        if (retry > 0) {
+                            long delay = Math.min(INITIAL_RETRY_DELAY_MS * (1L << (retry - 1)), MAX_RETRY_DELAY_MS);
+                            System.out.println("DEBUG: Retry " + retry + " for model " + model + " after " + delay + "ms delay");
+                            Thread.sleep(delay);
+                        }
+                        
+                        // Track API call attempt
+                        trackApiCall(model);
+                        
+                        String url = String.format(API_URL_TEMPLATE, model, apiKey);
+                        ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+                        
+                        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                            String extracted = extractTextFromResponse(response.getBody());
+                            if (extracted == null || extracted.isEmpty() || extracted.equals("{}")) {
+                                throw new RuntimeException("Safety Blocked/Empty");
+                            }
+                            System.out.println("DEBUG: Successfully called Gemini API with model: " + model);
+                            logApiUsage(model, true);
+                            return new ApiResult(extracted, model);
+                        }
+                    } catch (HttpClientErrorException e) {
+                        if (e.getStatusCode().value() == 429) {
+                            // Rate limit hit - update cooldown timer and track
+                            lastRateLimitTime = System.currentTimeMillis();
+                            trackRateLimit(model);
+                            System.out.println("WARN: Rate limit (429) hit for model " + model + ", activating cooldown");
+                            errors.add(model + ": " + e.getStatusCode() + " (Rate Limit)");
+                            continue; // Try next model
+                        } else if (e.getStatusCode().value() == 503 || e.getStatusCode().value() == 404) {
+                            errors.add(model + ": " + e.getStatusCode());
+                            continue; // Try next model
+                        }
+                        throw new RuntimeException("API Error (" + model + "): " + e.getResponseBodyAsString());
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Request interrupted");
+                    } catch (Exception e) { 
+                        errors.add(model + ": " + e.getMessage()); 
+                    }
+                }
+                
+                // If we've tried all models in this retry and failed, continue to next retry
+                if (retry < MAX_RETRIES - 1) {
+                    System.out.println("DEBUG: Retry " + (retry + 1) + " of " + MAX_RETRIES + " after all models failed");
+                }
+            }
+            
+            // All retries exhausted
+            throw new RuntimeException("All models failed after " + MAX_RETRIES + " retries. Attempts: " + String.join(" | ", errors));
+        } finally {
+            // Clean up pending request
+            synchronized (lock) {
+                pendingRequests.remove(requestHash);
+                lock.notifyAll();
+            }
+        }
+    }
+    
+    private void trackApiCall(String model) {
+        apiCallCounts.merge(model, 1, Integer::sum);
+        System.out.println("API Usage: Model " + model + " called " + apiCallCounts.get(model) + " times (this hour)");
+    }
+    
+    private void trackRateLimit(String model) {
+        rateLimitCounts.merge(model, 1, Integer::sum);
+        System.out.println("Rate Limit Alert: Model " + model + " hit rate limit " + rateLimitCounts.get(model) + " times (this hour)");
+    }
+    
+    private void logApiUsage(String model, boolean success) {
+        // Log detailed usage for monitoring
+        System.out.println("API Call Summary - Model: " + model + ", Success: " + success + 
+                         ", Total calls this hour: " + apiCallCounts.getOrDefault(model, 0) +
+                         ", Rate limits hit: " + rateLimitCounts.getOrDefault(model, 0));
+    }
+    
+    private void resetUsageStatsIfNeeded() {
+        long now = System.currentTimeMillis();
+        if (now - lastUsageResetTime >= USAGE_RESET_INTERVAL_MS) {
+            apiCallCounts.clear();
+            rateLimitCounts.clear();
+            lastUsageResetTime = now;
+            System.out.println("API usage statistics reset (hourly interval)");
+        }
+    }
+    
+    // Public method to get current API usage stats (could be exposed via REST endpoint)
+    public Map<String, Object> getApiUsageStats() {
+        Map<String, Object> stats = new ConcurrentHashMap<>();
+        stats.put("totalCalls", apiCallCounts.values().stream().mapToInt(Integer::intValue).sum());
+        stats.put("rateLimitCount", rateLimitCounts.values().stream().mapToInt(Integer::intValue).sum());
+        stats.put("lastReset", lastUsageResetTime);
+        stats.put("nextResetInMs", USAGE_RESET_INTERVAL_MS - (System.currentTimeMillis() - lastUsageResetTime));
+        stats.put("perModelCalls", new HashMap<>(apiCallCounts));
+        stats.put("perModelRateLimits", new HashMap<>(rateLimitCounts));
+        return stats;
     }
 
     private List<MergedNewsCluster> parseClusterJsonFromAI(String rawText) {

@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -110,5 +111,10 @@ public class NewsController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
+    }
+
+    @GetMapping("/api/usage")
+    public Map<String, Object> getApiUsageStats() {
+        return newsSystemService.getApiUsageStats();
     }
 }

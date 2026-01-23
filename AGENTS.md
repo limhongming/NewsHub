@@ -5,22 +5,38 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 ## Project Overview
 NewsHub is a Spring Boot application that aggregates news from BBC and CNN via RSS feeds, scrapes article content with Jsoup, and uses Google Gemini AI to provide analysis (urgency, economic impact, global impact ratings).
 
-## Build & Run Commands
+## Development & Deployment Workflow
+
+### Important: Local Development Setup
+- **Local PC Purpose:** Code editing and Git operations only
+- **No Local Build Tools:** Maven is NOT installed on the local PC
+- **No Local Hosting:** The application is NOT run or hosted on the local PC
+- **Deployment Command:** `.\git-sync.bat` is the ONLY command needed to deploy changes
+
+### Deployment Commands
 ```powershell
-# Build (skipping tests)
-.\mvnw clean package -DskipTests
-
-# Run locally (default port 8080)
-.\mvnw spring-boot:run
-
-# Run tests
-.\mvnw test
-
-# Run a single test class
-.\mvnw test -Dtest=TestClassName
-
-# Deploy to VPS (triggers CI/CD pipeline)
+# Deploy to VPS (triggers CI/CD pipeline) - USE THIS FOR ALL DEPLOYMENTS
 .\git-sync.bat
+
+# Note: The following Maven commands are for reference only and run on the VPS:
+# Build (skipping tests) - RUNS ON VPS, NOT LOCALLY
+# ./mvnw clean package -DskipTests
+
+# Run locally (default port 8080) - NOT USED, APPLICATION RUNS ON VPS ONLY
+# ./mvnw spring-boot:run
+
+# Run tests - RUNS ON VPS DURING DEPLOYMENT
+# ./mvnw test
+```
+
+### VPS Build & Run Commands (For Reference)
+These commands are executed automatically by the CI/CD pipeline on the VPS:
+```bash
+# Build on VPS
+./mvnw clean package -DskipTests
+
+# Run on VPS (port 80)
+java -jar target/*.jar
 ```
 
 ## Configuration
@@ -37,7 +53,7 @@ controller/NewsController.java  → REST API endpoints (/api/*)
 service/
 ├── NewsService.java           → RSS fetching (Rome) + HTML scraping (Jsoup)
 ├── NewsSystemService.java     → Gemini API integration with model fallback
-└── NewsCacheService.java      → File-based caching (1-hour TTL)
+└── NewsCacheService.java      → File-based caching (6-hour TTL)
     ↓
 model/                         → Java records (NewsItem, MergedNewsCluster, etc.)
 ```
@@ -55,7 +71,7 @@ model/                         → Java records (NewsItem, MergedNewsCluster, et
 `NewsSystemService` handles all Gemini API calls with automatic fallback through multiple models (`gemini-2.5-flash-lite` → `gemini-2.0-flash-lite-001` → etc.) when rate-limited (429) or unavailable (503/404).
 
 ### Caching
-`NewsCacheService` uses file-based JSON caching in `./cache/` directory with 1-hour expiration. Cache keys combine source tab, language, and model name.
+`NewsCacheService` uses file-based JSON caching in `./cache/` directory with 6-hour expiration (recently extended from 1 hour to reduce API calls). Cache keys combine source tab, language, and model name.
 
 ### Frontend
 Single-page app in `src/main/resources/static/index.html` - all HTML/CSS/JS embedded in one file.

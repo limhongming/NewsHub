@@ -17,7 +17,7 @@ public class NewsCacheService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String CACHE_DIR = "cache";
-    private static final long CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
+    private static final long CACHE_DURATION_MS = 6 * 60 * 60 * 1000; // 6 hours
 
     public NewsCacheService() {
         try {
