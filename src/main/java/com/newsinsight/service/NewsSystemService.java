@@ -139,10 +139,12 @@ public class NewsSystemService {
     
     // Rate limiting tracking
     private volatile long lastRateLimitTime = 0;
-    private static final long RATE_LIMIT_COOLDOWN_MS = 5000; // 5 seconds cooldown after rate limit
-    private static final int MAX_RETRIES = 2; // Reduced retries to avoid hitting rate limits
-    private static final long INITIAL_RETRY_DELAY_MS = 5000; // Increased to 5 seconds
+    private static final long RATE_LIMIT_COOLDOWN_MS = 10000; // 10 seconds cooldown after rate limit
+    private static final int MAX_RETRIES = 1; // Only 1 retry to avoid hitting rate limits
+    private static final long INITIAL_RETRY_DELAY_MS = 8000; // Increased to 8 seconds
     private static final long MAX_RETRY_DELAY_MS = 30000; // Increased to 30 seconds
+    private static final long MIN_REQUEST_INTERVAL_MS = 6000; // 6 seconds between requests (10 RPM)
+    private volatile long lastRequestTime = 0;
     
     // API usage tracking
     private final ConcurrentMap<String, Integer> apiCallCounts = new ConcurrentHashMap<>();
@@ -525,6 +527,23 @@ public class NewsSystemService {
         if (now - lastRateLimitTime < RATE_LIMIT_COOLDOWN_MS) {
             throw new RuntimeException("Rate limit cooldown active. Please wait " + 
                 ((RATE_LIMIT_COOLDOWN_MS - (now - lastRateLimitTime)) / 1000) + " seconds.");
+        }
+        
+        // Global request throttling: ensure minimum interval between any Gemini API calls
+        synchronized (this) {
+            long timeSinceLastRequest = now - lastRequestTime;
+            if (timeSinceLastRequest < MIN_REQUEST_INTERVAL_MS) {
+                long waitTime = MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest;
+                System.out.println("DEBUG: Throttling request - waiting " + waitTime + "ms to respect rate limit");
+                try {
+                    Thread.sleep(waitTime);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Request interrupted during throttling delay");
+                }
+                now = System.currentTimeMillis(); // Update now after waiting
+            }
+            lastRequestTime = now;
         }
         
         // Reset usage stats if interval has passed
