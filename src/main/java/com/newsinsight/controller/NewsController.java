@@ -94,8 +94,15 @@ public class NewsController {
             return ResponseEntity.badRequest().body("URL is required");
         }
 
+        // 1. Check cache first
+        AnalysisResponse cachedResponse = newsCacheService.getCachedArticleAnalysis(request.url());
+        if (cachedResponse != null) {
+            System.out.println("INFO: Returning cached analysis for URL: " + request.url());
+            return ResponseEntity.ok(cachedResponse);
+        }
+
         try {
-            // 1. Scrape
+            // 2. Scrape
             System.out.println("INFO: Starting article analysis for URL: " + request.url());
             String content;
             try {
@@ -119,22 +126,34 @@ public class NewsController {
 
             System.out.println("INFO: Successfully scraped " + content.length() + " characters, now analyzing...");
             
-            // 2. Analyze
+            // 3. Analyze
             AnalysisResponse.AnalysisData analysisData;
             try {
                 analysisData = newsSystemService.analyzeText(content);
             } catch (Exception analysisException) {
                 System.err.println("ERROR: Failed to analyze article content: " + analysisException.getMessage());
                 // If analysis fails, still return the scraped content with a note
-                return ResponseEntity.ok(new AnalysisResponse(
+                AnalysisResponse errorResponse = new AnalysisResponse(
                     new AnalysisResponse.AnalysisData("Analysis Failed: " + analysisException.getMessage()),
                     content
-                ));
+                );
+                // We don't cache error responses to allow retry later
+                return ResponseEntity.ok(errorResponse);
             }
             
-            // 3. Return Combined Response
+            // 4. Cache the successful analysis
+            AnalysisResponse successResponse = new AnalysisResponse(analysisData, content);
+            try {
+                newsCacheService.cacheArticleAnalysis(request.url(), successResponse);
+                System.out.println("INFO: Cached analysis for URL: " + request.url());
+            } catch (Exception cacheException) {
+                System.err.println("WARN: Failed to cache analysis for URL " + request.url() + ": " + cacheException.getMessage());
+                // Continue anyway, caching is not critical
+            }
+            
+            // 5. Return Combined Response
             System.out.println("INFO: Analysis complete for URL: " + request.url());
-            return ResponseEntity.ok(new AnalysisResponse(analysisData, content));
+            return ResponseEntity.ok(successResponse);
 
         } catch (Exception e) {
             System.err.println("ERROR: Unexpected error in analyzeNews: " + e.getMessage());

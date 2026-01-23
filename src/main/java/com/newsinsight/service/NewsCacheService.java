@@ -2,6 +2,7 @@ package com.newsinsight.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.newsinsight.model.AnalysisResponse;
 import com.newsinsight.model.MergedNewsCluster;
 import org.springframework.stereotype.Service;
 
@@ -85,5 +86,37 @@ public class NewsCacheService {
         try {
             objectMapper.writeValue(cacheFile, cluster);
         } catch (IOException e) { e.printStackTrace(); }
+    }
+
+    public AnalysisResponse getCachedArticleAnalysis(String url) {
+        String hash = String.valueOf(url.hashCode()).replace("-", "n");
+        String fileName = String.format("article_%s.json", hash);
+        File cacheFile = new File(CACHE_DIR, fileName);
+
+        if (cacheFile.exists() && (System.currentTimeMillis() - cacheFile.lastModified() < CACHE_DURATION_MS)) {
+            try {
+                System.out.println("DEBUG: Loading article analysis from cache: " + fileName);
+                return objectMapper.readValue(cacheFile, AnalysisResponse.class);
+            } catch (IOException e) {
+                System.err.println("Error reading article cache file: " + e.getMessage());
+                return null;
+            }
+        } else if (cacheFile.exists()) {
+            System.out.println("DEBUG: Article analysis cache expired: " + fileName);
+        }
+        return null;
+    }
+
+    public void cacheArticleAnalysis(String url, AnalysisResponse response) {
+        String hash = String.valueOf(url.hashCode()).replace("-", "n");
+        String fileName = String.format("article_%s.json", hash);
+        File cacheFile = new File(CACHE_DIR, fileName);
+        try {
+            System.out.println("DEBUG: Saving article analysis to cache: " + fileName);
+            objectMapper.writeValue(cacheFile, response);
+        } catch (IOException e) {
+            System.err.println("Error writing article cache file: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }
