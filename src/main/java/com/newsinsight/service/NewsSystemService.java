@@ -328,8 +328,75 @@ public class NewsSystemService {
                 .collect(Collectors.toList());
         if (validItems.isEmpty()) return List.of(new MergedNewsCluster("No Content", "No valid articles found.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "None"));
         
+        // Check if we should use sequential processing (safer for rate limits)
+        if (shouldUseSequentialProcessing(validItems.size())) {
+            return processArticlesSequentially(validItems, language, preferredModel);
+        } else {
+            return processArticlesInBatch(validItems, language, preferredModel);
+        }
+    }
+    
+    private boolean shouldUseSequentialProcessing(int itemCount) {
+        // Use sequential processing if we have more than 3 articles or if we've hit rate limits recently
+        return itemCount > 3 || (System.currentTimeMillis() - lastRateLimitTime < RATE_LIMIT_COOLDOWN_MS * 2);
+    }
+    
+    private List<MergedNewsCluster> processArticlesSequentially(List<NewsItem> items, String language, String preferredModel) {
+        List<MergedNewsCluster> results = new ArrayList<>();
+        String workingModel = preferredModel; // Track which model works
+        
+        System.out.println("DEBUG: Processing " + items.size() + " articles sequentially to avoid rate limits");
+        
+        for (int i = 0; i < items.size(); i++) {
+            NewsItem item = items.get(i);
+            
+            try {
+                // Analyze each article individually
+                MergedNewsCluster analysis = analyzeSingleArticle(item, language, workingModel);
+                
+                // If we got a successful analysis, use the same model for next articles
+                if (analysis != null && !analysis.topic().contains("Error") && analysis.modelUsed() != null) {
+                    workingModel = analysis.modelUsed(); // Stick with the working model
+                    results.add(analysis);
+                    System.out.println("DEBUG: Successfully analyzed article " + (i + 1) + "/" + items.size() + " with model: " + workingModel);
+                } else {
+                    // If analysis failed, try with a different model next time
+                    workingModel = null;
+                    results.add(analysis);
+                }
+                
+                // Add delay between articles to respect rate limits (2-5 seconds)
+                if (i < items.size() - 1) {
+                    long delay = 2000 + (long)(Math.random() * 3000); // 2-5 seconds
+                    System.out.println("DEBUG: Waiting " + delay + "ms before next article...");
+                    Thread.sleep(delay);
+                }
+                
+            } catch (Exception e) {
+                System.err.println("ERROR: Failed to analyze article " + (i + 1) + ": " + e.getMessage());
+                results.add(new MergedNewsCluster("Analysis Error", "Failed: " + e.getMessage(), "N/A", "N/A", "0", "N/A", 
+                    List.of(item.link()), "Error"));
+                
+                // If we hit rate limit, increase delay for next attempt
+                if (e.getMessage() != null && e.getMessage().contains("Rate limit")) {
+                    System.out.println("WARN: Rate limit hit, increasing delay...");
+                    try {
+                        Thread.sleep(10000); // 10 second delay after rate limit
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+        }
+        
+        // Group similar articles (basic clustering)
+        return groupSimilarArticles(results);
+    }
+    
+    private List<MergedNewsCluster> processArticlesInBatch(List<NewsItem> items, String language, String preferredModel) {
+        // Original batch processing for small numbers of articles
         StringBuilder itemsText = new StringBuilder();
-        for (NewsItem item : validItems) itemsText.append("- Title: ").append(item.title()).append("\nLink: ").append(item.link()).append("\nSnippet: ").append(item.summary()).append("\n\n");
+        for (NewsItem item : items) itemsText.append("- Title: ").append(item.title()).append("\nLink: ").append(item.link()).append("\nSnippet: ").append(item.summary()).append("\n\n");
         String fullText = itemsText.toString();
         if (fullText.length() > 30000) fullText = fullText.substring(0, 30000) + "...[TRUNCATED]";
 
@@ -351,6 +418,79 @@ public class NewsSystemService {
             String msg = (e instanceof HttpClientErrorException) ? ((HttpClientErrorException) e).getResponseBodyAsString() : e.getMessage();
             return List.of(new MergedNewsCluster("System Error", "Analysis Failed: " + msg, "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error"));
         }
+    }
+    
+    private MergedNewsCluster analyzeSingleArticle(NewsItem item, String language, String preferredModel) {
+        String prompt = String.format("""
+            Analyze this news article. FOCUS ON LATEST INFORMATION.
+            Title: %s
+            Content: %s
+            Link: %s
+            
+            1. TRANSLATION: Translate \"topic\", \"summary\", \"economic_impact\", \"global_impact\", and \"what_next\" into %s.
+            2. ANALYSIS: Provide synthesized summary, economic impact, global impact, rating (1-10), and prediction.
+            
+            Return ONLY JSON:
+            {\"topic\":\"...\",\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":\"8\",\"what_next\":\"...\"}
+            """, item.title(), item.summary(), item.link(), language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language);
+
+        try {
+            ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
+            Map<String, Object> map = objectMapper.readValue(result.text().replace("```json", "").replace("```", "").trim(), new TypeReference<Map<String, Object>>(){});
+            return new MergedNewsCluster(
+                (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
+                (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
+                List.of(item.link()), result.model()
+            );
+        } catch (Exception e) {
+            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", List.of(item.link()), "Error");
+        }
+    }
+    
+    private List<MergedNewsCluster> groupSimilarArticles(List<MergedNewsCluster> articles) {
+        // Simple grouping by topic similarity (first 3 words)
+        Map<String, List<MergedNewsCluster>> groups = new HashMap<>();
+        
+        for (MergedNewsCluster article : articles) {
+            if (article.topic().contains("Error")) {
+                // Keep errors as separate entries
+                groups.put(article.topic() + "_" + System.currentTimeMillis(), List.of(article));
+                continue;
+            }
+            
+            String key = article.topic().toLowerCase();
+            if (key.length() > 30) key = key.substring(0, 30);
+            
+            groups.computeIfAbsent(key, k -> new ArrayList<>()).add(article);
+        }
+        
+        // Merge groups into clusters
+        List<MergedNewsCluster> clusters = new ArrayList<>();
+        for (Map.Entry<String, List<MergedNewsCluster>> entry : groups.entrySet()) {
+            List<MergedNewsCluster> group = entry.getValue();
+            if (group.size() == 1) {
+                clusters.add(group.get(0));
+            } else {
+                // Merge multiple articles about same topic
+                MergedNewsCluster first = group.get(0);
+                List<String> allLinks = group.stream()
+                    .flatMap(cluster -> cluster.related_links().stream())
+                    .collect(Collectors.toList());
+                
+                clusters.add(new MergedNewsCluster(
+                    first.topic() + " (Multiple Articles)",
+                    "Multiple articles covering this topic. " + first.summary(),
+                    first.economic_impact(),
+                    first.global_impact(),
+                    first.impact_rating(),
+                    first.what_next(),
+                    allLinks,
+                    first.modelUsed()
+                ));
+            }
+        }
+        
+        return clusters;
     }
 
     private ApiResult callGeminiApiWithFallback(String prompt, String preferredModel) {
