@@ -1,3 +1,17 @@
 package com.newsinsight.model;
 
-public record AnalysisRequest(String url) {}
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+public class AnalysisRequest {
+    private final String url;
+    
+    @JsonCreator
+    public AnalysisRequest(@JsonProperty("url") String url) {
+        this.url = url;
+    }
+    
+    public String url() {
+        return url;
+    }
+}
