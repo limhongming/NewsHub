@@ -13,6 +13,10 @@ jobs:
     steps:
     - name: Execute Remote Deployment
       uses: appleboy/ssh-action@v1.0.0
+      env:
+        DB_URL: ${{ secrets.DB_URL }}
+        DB_USERNAME: ${{ secrets.DB_USERNAME }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       with:
         host: ${{ secrets.host }}
         username: ${{ secrets.username }}
@@ -59,18 +63,52 @@ jobs:
           # Build using the wrapper AND force the correct compiler executable
           ./mvnw clean package -DskipTests -Dmaven.compiler.fork=true -Dmaven.compiler.executable=$JAVA_HOME/bin/javac
           
+          # 4.5 Install and Configure MySQL
+          echo "Setting up MySQL database..."
+          if ! command -v mysql &> /dev/null; then
+              echo "MySQL not found. Installing..."
+              sudo apt-get install -y mysql-server
+              sudo systemctl start mysql
+              sudo systemctl enable mysql
+          else
+              echo "MySQL is already installed."
+          fi
+          
+          # Set DB environment variables in ~/.bashrc if they are not already set
+          if [ -n "$DB_URL" ] && [ -n "$DB_USERNAME" ] && [ -n "$DB_PASSWORD" ]; then
+              echo "Setting DB environment variables in ~/.bashrc"
+              # Remove any existing lines for these variables
+              sed -i '/export DB_URL=/d' ~/.bashrc
+              sed -i '/export DB_USERNAME=/d' ~/.bashrc
+              sed -i '/export DB_PASSWORD=/d' ~/.bashrc
+              # Append the new ones
+              echo "export DB_URL=\"$DB_URL\"" >> ~/.bashrc
+              echo "export DB_USERNAME=\"$DB_USERNAME\"" >> ~/.bashrc
+              echo "export DB_PASSWORD=\"$DB_PASSWORD\"" >> ~/.bashrc
+              source ~/.bashrc
+          else
+              echo "WARNING: DB environment variables are not set. Please set DB_URL, DB_USERNAME, and DB_PASSWORD in GitHub secrets."
+          fi
+          
           # 5. Start App
           # Rename to generic app.jar
           rm -f app.jar
           mv target/*.jar app.jar
           
-          # Source bashrc to load env vars
+          # Source bashrc to load env vars (including DB vars)
           source ~/.bashrc
           
           if [ -z "$GEMINI_API_KEY" ]; then
               echo "WARNING: GEMINI_API_KEY is empty after sourcing .bashrc"
           else
               echo "GEMINI_API_KEY found (length: ${#GEMINI_API_KEY})"
+          fi
+          
+          # Check DB environment variables
+          if [ -z "$DB_URL" ] || [ -z "$DB_USERNAME" ] || [ -z "$DB_PASSWORD" ]; then
+              echo "WARNING: One or more DB environment variables are empty. The app may fail to connect to MySQL."
+          else
+              echo "DB environment variables are set."
           fi
           
           # AGGRESSIVE KILL: Clear port 80 immediately before starting

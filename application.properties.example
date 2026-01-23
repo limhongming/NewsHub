@@ -1,0 +1,21 @@
+# Production Database Configuration
+# Set these environment variables on your VPS:
+# DB_URL, DB_USERNAME, DB_PASSWORD
+spring.datasource.url=${DB_URL:jdbc:mysql://localhost:3306/newshub}
+spring.datasource.username=${DB_USERNAME}
+spring.datasource.password=${DB_PASSWORD}
+
+# JPA/Hibernate Settings
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.MySQL8Dialect
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.format_sql=true
+
+# Cache duration (6 hours in milliseconds)
+app.cache.duration=21600000
+
+# Gemini API Key
+gemini.api.key=${GEMINI_API_KEY}
+
+# Server port (80 for production)
+server.port=80

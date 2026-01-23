@@ -4,119 +4,172 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.newsinsight.model.AnalysisResponse;
 import com.newsinsight.model.MergedNewsCluster;
+import com.newsinsight.model.NewsCacheClusterEntity;
+import com.newsinsight.model.ArticleCacheEntity;
+import com.newsinsight.repository.NewsCacheClusterRepository;
+import com.newsinsight.repository.ArticleCacheRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 public class NewsCacheService {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private static final String CACHE_DIR = "cache";
-    private static final long CACHE_DURATION_MS = 6 * 60 * 60 * 1000; // 6 hours
+    private final ObjectMapper objectMapper;
+    private final NewsCacheClusterRepository clusterRepository;
+    private final ArticleCacheRepository articleRepository;
+    
+    @Value("${app.cache.duration:21600000}") // 6 hours default
+    private long cacheDurationMs;
 
-    public NewsCacheService() {
-        try {
-            Files.createDirectories(Paths.get(CACHE_DIR));
-        } catch (IOException e) {
-            System.err.println("Could not create cache directory: " + e.getMessage());
-        }
+    public NewsCacheService(ObjectMapper objectMapper, 
+                           NewsCacheClusterRepository clusterRepository,
+                           ArticleCacheRepository articleRepository) {
+        this.objectMapper = objectMapper;
+        this.clusterRepository = clusterRepository;
+        this.articleRepository = articleRepository;
     }
 
     public List<MergedNewsCluster> getCachedNews(String tab, String lang, String model) {
-        String fileName = getCacheFileName(tab, lang, model);
-        File cacheFile = new File(CACHE_DIR, fileName);
-
-        if (cacheFile.exists()) {
-            long lastModified = cacheFile.lastModified();
-            if (System.currentTimeMillis() - lastModified < CACHE_DURATION_MS) {
-                try {
-                    System.out.println("DEBUG: Loading from cache: " + fileName);
-                    return objectMapper.readValue(cacheFile, new TypeReference<List<MergedNewsCluster>>() {});
-                } catch (IOException e) {
-                    System.err.println("Error reading cache file: " + e.getMessage());
-                }
-            } else {
-                System.out.println("DEBUG: Cache expired: " + fileName);
-            }
-        }
-        return null;
+        String cacheKey = generateCacheKey(tab, lang, model);
+        
+        return clusterRepository.findByCacheKeyAndNotExpired(cacheKey, LocalDateTime.now())
+                .map(entity -> {
+                    try {
+                        System.out.println("DEBUG: Loading from MySQL cache: " + cacheKey);
+                        return objectMapper.readValue(entity.getDataJson(), 
+                                new TypeReference<List<MergedNewsCluster>>() {});
+                    } catch (IOException e) {
+                        System.err.println("Error parsing cache JSON: " + e.getMessage());
+                        return null;
+                    }
+                })
+                .orElse(null);
     }
 
+    @Transactional
     public void cacheNews(String tab, String lang, String model, List<MergedNewsCluster> clusters) {
-        String fileName = getCacheFileName(tab, lang, model);
-        File cacheFile = new File(CACHE_DIR, fileName);
+        String cacheKey = generateCacheKey(tab, lang, model);
+        
         try {
-            System.out.println("DEBUG: Saving to cache: " + fileName);
-            objectMapper.writeValue(cacheFile, clusters);
+            String dataJson = objectMapper.writeValueAsString(clusters);
+            
+            // Delete existing cache entry if exists
+            clusterRepository.deleteByCacheKey(cacheKey);
+            
+            // Create new cache entry
+            NewsCacheClusterEntity entity = new NewsCacheClusterEntity(
+                    cacheKey, tab, lang, model, dataJson, cacheDurationMs);
+            
+            clusterRepository.save(entity);
+            System.out.println("DEBUG: Saving to MySQL cache: " + cacheKey);
         } catch (IOException e) {
-            System.err.println("Error writing cache file: " + e.getMessage());
+            System.err.println("Error serializing cache data: " + e.getMessage());
         }
     }
 
-    private String getCacheFileName(String tab, String lang, String model) {
-        return String.format("%s_%s_%s.json", 
+    public MergedNewsCluster getCachedSnippet(String link, String lang, String model) {
+        String urlHash = generateUrlHash(link);
+        
+        return articleRepository.findByUrlHashLanguageModelTypeAndNotExpired(
+                    urlHash, lang, model, "snippet", LocalDateTime.now())
+                .map(entity -> {
+                    try {
+                        return objectMapper.readValue(entity.getDataJson(), MergedNewsCluster.class);
+                    } catch (IOException e) {
+                        System.err.println("Error parsing snippet cache JSON: " + e.getMessage());
+                        return null;
+                    }
+                })
+                .orElse(null);
+    }
+
+    @Transactional
+    public void cacheSnippet(String link, String lang, String model, MergedNewsCluster cluster) {
+        String urlHash = generateUrlHash(link);
+        
+        try {
+            String dataJson = objectMapper.writeValueAsString(cluster);
+            
+            // Delete existing cache entry if exists
+            articleRepository.deleteByUrlHash(urlHash);
+            
+            // Create new cache entry
+            ArticleCacheEntity entity = new ArticleCacheEntity(
+                    urlHash, link, lang, model, "snippet", dataJson, cacheDurationMs);
+            
+            articleRepository.save(entity);
+        } catch (IOException e) {
+            System.err.println("Error serializing snippet cache data: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    public AnalysisResponse getCachedArticleAnalysis(String url) {
+        String urlHash = generateUrlHash(url);
+        
+        return articleRepository.findByUrlHashLanguageModelTypeAndNotExpired(
+                    urlHash, "English", "default", "full_article", LocalDateTime.now())
+                .map(entity -> {
+                    try {
+                        System.out.println("DEBUG: Loading article analysis from MySQL cache: " + urlHash);
+                        return objectMapper.readValue(entity.getDataJson(), AnalysisResponse.class);
+                    } catch (IOException e) {
+                        System.err.println("Error reading article cache from DB: " + e.getMessage());
+                        return null;
+                    }
+                })
+                .orElse(null);
+    }
+
+    @Transactional
+    public void cacheArticleAnalysis(String url, AnalysisResponse response) {
+        String urlHash = generateUrlHash(url);
+        
+        try {
+            String dataJson = objectMapper.writeValueAsString(response);
+            
+            // Delete existing cache entry if exists
+            articleRepository.deleteByUrlHash(urlHash);
+            
+            // Create new cache entry
+            ArticleCacheEntity entity = new ArticleCacheEntity(
+                    urlHash, url, "English", "default", "full_article", dataJson, cacheDurationMs);
+            
+            articleRepository.save(entity);
+            System.out.println("DEBUG: Saving article analysis to MySQL cache: " + urlHash);
+        } catch (IOException e) {
+            System.err.println("Error writing article cache to DB: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private String generateCacheKey(String tab, String lang, String model) {
+        return String.format("%s_%s_%s", 
             tab.replaceAll("[^a-zA-Z0-9]", ""), 
             lang.replaceAll("[^a-zA-Z0-9]", ""), 
             model.replaceAll("[^a-zA-Z0-9]", ""));
     }
 
-    public MergedNewsCluster getCachedSnippet(String link, String lang, String model) {
-        String hash = String.valueOf(link.hashCode()).replace("-", "n");
-        String fileName = String.format("snippet_%s_%s_%s.json", hash, lang, model);
-        File cacheFile = new File(CACHE_DIR, fileName);
-
-        if (cacheFile.exists() && (System.currentTimeMillis() - cacheFile.lastModified() < CACHE_DURATION_MS)) {
-            try {
-                return objectMapper.readValue(cacheFile, MergedNewsCluster.class);
-            } catch (IOException e) { return null; }
-        }
-        return null;
+    private String generateUrlHash(String url) {
+        return String.valueOf(url.hashCode()).replace("-", "n");
     }
 
-    public void cacheSnippet(String link, String lang, String model, MergedNewsCluster cluster) {
-        String hash = String.valueOf(link.hashCode()).replace("-", "n");
-        String fileName = String.format("snippet_%s_%s_%s.json", hash, lang, model);
-        File cacheFile = new File(CACHE_DIR, fileName);
-        try {
-            objectMapper.writeValue(cacheFile, cluster);
-        } catch (IOException e) { e.printStackTrace(); }
-    }
-
-    public AnalysisResponse getCachedArticleAnalysis(String url) {
-        String hash = String.valueOf(url.hashCode()).replace("-", "n");
-        String fileName = String.format("article_%s.json", hash);
-        File cacheFile = new File(CACHE_DIR, fileName);
-
-        if (cacheFile.exists() && (System.currentTimeMillis() - cacheFile.lastModified() < CACHE_DURATION_MS)) {
-            try {
-                System.out.println("DEBUG: Loading article analysis from cache: " + fileName);
-                return objectMapper.readValue(cacheFile, AnalysisResponse.class);
-            } catch (IOException e) {
-                System.err.println("Error reading article cache file: " + e.getMessage());
-                return null;
-            }
-        } else if (cacheFile.exists()) {
-            System.out.println("DEBUG: Article analysis cache expired: " + fileName);
-        }
-        return null;
-    }
-
-    public void cacheArticleAnalysis(String url, AnalysisResponse response) {
-        String hash = String.valueOf(url.hashCode()).replace("-", "n");
-        String fileName = String.format("article_%s.json", hash);
-        File cacheFile = new File(CACHE_DIR, fileName);
-        try {
-            System.out.println("DEBUG: Saving article analysis to cache: " + fileName);
-            objectMapper.writeValue(cacheFile, response);
-        } catch (IOException e) {
-            System.err.println("Error writing article cache file: " + e.getMessage());
-            e.printStackTrace();
+    @Scheduled(fixedDelay = 3600000) // Run every hour
+    @Transactional
+    public void cleanupExpiredCache() {
+        LocalDateTime now = LocalDateTime.now();
+        int clusterDeleted = clusterRepository.deleteExpired(now);
+        int articleDeleted = articleRepository.deleteExpired(now);
+        
+        if (clusterDeleted > 0 || articleDeleted > 0) {
+            System.out.println("DEBUG: Cleaned up expired cache entries. " +
+                              "Clusters: " + clusterDeleted + ", Articles: " + articleDeleted);
         }
     }
 }
