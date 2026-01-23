@@ -425,26 +425,52 @@
                 // Health check: test if Gemini API is available before attempting analysis
                 showStatusBar(tabName, 'Checking AI service availability...', true);
                 let healthCheckPassed = false;
+                let healthMessage = '';
                 try {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
                     const healthResponse = await fetch('/api/health', { signal: controller.signal });
+                    
+                    // Clear the timeout since we got a response
                     clearTimeout(timeoutId);
-                    if (healthResponse.ok) {
-                        const health = await healthResponse.json();
-                        if (health.status === 'UP') {
-                            healthCheckPassed = true;
-                            console.log('Health check passed:', health.message);
-                        } else {
-                            console.error('Health check failed:', health.message);
-                            showStatusBar(tabName, 'AI service is unavailable: ' + health.message, false);
-                        }
+                    
+                    // Try to parse JSON regardless of status
+                    let health;
+                    try {
+                        health = await healthResponse.json();
+                    } catch (parseError) {
+                        // If JSON parsing fails, create a generic error object
+                        health = { 
+                            status: 'DOWN', 
+                            message: `Invalid response from server (Status ${healthResponse.status}: ${healthResponse.statusText})`
+                        };
+                    }
+                    
+                    // Check if the health check passed
+                    if (healthResponse.ok && health.status === 'UP') {
+                        healthCheckPassed = true;
+                        healthMessage = health.message;
+                        console.log('Health check passed:', healthMessage);
+                    } else {
+                        // Health check failed
+                        healthMessage = health.message || `Server returned status ${healthResponse.status}: ${healthResponse.statusText}`;
+                        console.error('Health check failed:', healthMessage);
+                        showStatusBar(tabName, 'AI service unavailable: ' + healthMessage, false);
                     }
                 } catch (error) {
+                    if (error.name === 'AbortError') {
+                        healthMessage = 'Health check timed out after 5 seconds. Gemini API is not responding.';
+                    } else {
+                        healthMessage = 'Health check failed: ' + error.message;
+                    }
                     console.error('Health check failed:', error);
-                    showStatusBar(tabName, 'AI service health check failed. Using raw news only.', false);
+                    showStatusBar(tabName, healthMessage, false);
                 }
+                
                 if (!healthCheckPassed) {
+                    // Update all loading placeholders to show health check failure
+                    const loaders = container.querySelectorAll('.loading-label');
+                    loaders.forEach(l => l.innerHTML = `<span class="text-danger">AI Analysis: ${healthMessage}</span>`);
                     updateCardsWithClusters(container, [], isBBC);
                     return;
                 }
