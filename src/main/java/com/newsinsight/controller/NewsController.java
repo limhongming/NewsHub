@@ -6,6 +6,7 @@ import com.newsinsight.model.GeminiModel;
 import com.newsinsight.model.SnippetRequest;
 import com.newsinsight.model.AnalysisRequest;
 import com.newsinsight.model.AnalysisResponse;
+import com.newsinsight.model.AnalysisResponse.AnalysisData;
 import com.newsinsight.service.NewsSystemService;
 import com.newsinsight.service.NewsService;
 import com.newsinsight.service.NewsCacheService;
