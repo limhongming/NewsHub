@@ -37,6 +37,7 @@ public class NewsSystemService {
     // Official Gemini models - production-ready, stable models only
     // Ordered by cost/performance: free/cheaper models first, then premium
     // Version numbers are explicitly included in model names
+    // Includes current models and forward-compatible for future versions (3.0+)
     private static final List<String> FALLBACK_MODELS = List.of(
         // Free tier models (highest rate limits, lowest cost)
         "gemini-2.0-flash-lite",      // Version 2.0 - Official free tier
@@ -51,35 +52,54 @@ public class NewsSystemService {
         // Pro models (higher cost, better for complex tasks)
         "gemini-2.0-pro",             // Version 2.0 - Pro version for complex reasoning
         "gemini-1.5-pro",             // Version 1.5 - Legacy pro model (if still available)
-        "gemini-1.5-flash"            // Version 1.5 - Flash model from previous generation
+        "gemini-1.5-flash",           // Version 1.5 - Flash model from previous generation
+        
+        // Future/experimental models (when available)
+        "gemini-3.0-flash-lite",      // Version 3.0 - Future free tier
+        "gemini-3.0-flash",           // Version 3.0 - Future standard tier
+        "gemini-3.0-pro"              // Version 3.0 - Future pro tier
     );
     
     // Model cost/priority mapping (lower number = higher priority for cost savings)
     // Updated to include all official models with version clarity
-    private static final Map<String, Integer> MODEL_PRIORITY = Map.of(
-        "gemini-2.0-flash-lite", 1,      // v2.0
-        "gemini-2.0-flash-lite-001", 2,  // v2.0.001
-        "gemini-2.5-flash-lite", 3,      // v2.5
-        "gemini-2.0-flash", 4,           // v2.0
-        "gemini-2.0-flash-001", 5,       // v2.0.001
-        "gemini-2.5-flash", 6,           // v2.5
-        "gemini-2.0-pro", 7,             // v2.0
-        "gemini-1.5-pro", 8,             // v1.5
-        "gemini-1.5-flash", 9            // v1.5
-    );
+    private static final Map<String, Integer> MODEL_PRIORITY = createModelPriorityMap();
     
     // Model version mapping for display purposes
-    private static final Map<String, String> MODEL_VERSIONS = Map.of(
-        "gemini-2.0-flash-lite", "2.0",
-        "gemini-2.0-flash-lite-001", "2.0.001",
-        "gemini-2.5-flash-lite", "2.5",
-        "gemini-2.0-flash", "2.0",
-        "gemini-2.0-flash-001", "2.0.001",
-        "gemini-2.5-flash", "2.5",
-        "gemini-2.0-pro", "2.0",
-        "gemini-1.5-pro", "1.5",
-        "gemini-1.5-flash", "1.5"
-    );
+    private static final Map<String, String> MODEL_VERSIONS = createModelVersionsMap();
+    
+    private static Map<String, Integer> createModelPriorityMap() {
+        Map<String, Integer> map = new HashMap<>();
+        map.put("gemini-2.0-flash-lite", 1);      // v2.0
+        map.put("gemini-2.0-flash-lite-001", 2);  // v2.0.001
+        map.put("gemini-2.5-flash-lite", 3);      // v2.5
+        map.put("gemini-2.0-flash", 4);           // v2.0
+        map.put("gemini-2.0-flash-001", 5);       // v2.0.001
+        map.put("gemini-2.5-flash", 6);           // v2.5
+        map.put("gemini-2.0-pro", 7);             // v2.0
+        map.put("gemini-1.5-pro", 8);             // v1.5
+        map.put("gemini-1.5-flash", 9);           // v1.5
+        map.put("gemini-3.0-flash-lite", 10);     // v3.0 (future)
+        map.put("gemini-3.0-flash", 11);          // v3.0 (future)
+        map.put("gemini-3.0-pro", 12);            // v3.0 (future)
+        return Collections.unmodifiableMap(map);
+    }
+    
+    private static Map<String, String> createModelVersionsMap() {
+        Map<String, String> map = new HashMap<>();
+        map.put("gemini-2.0-flash-lite", "2.0");
+        map.put("gemini-2.0-flash-lite-001", "2.0.001");
+        map.put("gemini-2.5-flash-lite", "2.5");
+        map.put("gemini-2.0-flash", "2.0");
+        map.put("gemini-2.0-flash-001", "2.0.001");
+        map.put("gemini-2.5-flash", "2.5");
+        map.put("gemini-2.0-pro", "2.0");
+        map.put("gemini-1.5-pro", "1.5");
+        map.put("gemini-1.5-flash", "1.5");
+        map.put("gemini-3.0-flash-lite", "3.0");
+        map.put("gemini-3.0-flash", "3.0");
+        map.put("gemini-3.0-pro", "3.0");
+        return Collections.unmodifiableMap(map);
+    }
     
     // Official model patterns - used to filter experimental/preview models
     private static final List<String> OFFICIAL_MODEL_PATTERNS = List.of(
@@ -224,6 +244,7 @@ public class NewsSystemService {
     
     private String getDescriptionForModel(String modelName) {
         String version = MODEL_VERSIONS.getOrDefault(modelName, extractVersionFromName(modelName));
+        if (modelName.contains("3.0")) return "Next generation (v" + version + ") with advanced capabilities";
         if (modelName.contains("2.5")) return "Latest generation (v" + version + ") with improved capabilities";
         if (modelName.contains("2.0")) return "Current stable version (v" + version + ")";
         if (modelName.contains("1.5")) return "Previous generation (v" + version + "), still supported";
@@ -232,11 +253,21 @@ public class NewsSystemService {
     
     private String extractVersionFromName(String modelName) {
         // Extract version from model name like "gemini-2.5-flash-lite" -> "2.5"
+        // Supports versions 1.0, 1.5, 2.0, 2.5, 3.0, etc.
+        if (modelName.contains("3.0")) return "3.0";
         if (modelName.contains("2.5")) return "2.5";
         if (modelName.contains("2.0")) return "2.0";
         if (modelName.contains("1.5")) return "1.5";
         if (modelName.contains("1.0")) return "1.0";
-        return "1.0";
+        
+        // Try to extract version using regex pattern for future versions
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("gemini-(\\d+\\.\\d+)");
+        java.util.regex.Matcher matcher = pattern.matcher(modelName);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        
+        return "1.0"; // Default fallback
     }
     
     private int getDefaultInputTokens(String modelName) {
