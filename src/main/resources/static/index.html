@@ -559,11 +559,30 @@
                         setCachedArticleAnalysis(item.link, lang, model, cluster);
                         updateCardWithAnalysis(cardWrapper, cluster, aiBox);
                     } else {
-                        aiBox.innerHTML = `<span class="text-danger">AI Analysis: Failed (${response.status})</span>`;
+                        const errorText = await response.text();
+                        let errorMsg = `AI Analysis: Failed (${response.status})`;
+                        try {
+                            const errorJson = JSON.parse(errorText);
+                            if (errorJson.message) errorMsg = `AI Analysis: ${errorJson.message}`;
+                            else if (typeof errorJson === 'string') errorMsg = `AI Analysis: ${errorJson}`;
+                        } catch {
+                            if (errorText) errorMsg = `AI Analysis: ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}`;
+                        }
+                        aiBox.innerHTML = `<span class="text-danger">${errorMsg}</span>`;
                     }
                 } catch (error) {
                     console.error('Error analyzing article:', error);
-                    aiBox.innerHTML = `<span class="text-danger">AI Analysis: Network error</span>`;
+                    let errorMsg = error.message || 'Network error';
+                    if (errorMsg.includes('Rate limit')) {
+                        // Extract wait time if available
+                        const waitMatch = errorMsg.match(/(\d+)\s+seconds/);
+                        if (waitMatch) {
+                            errorMsg = `Rate limit: Please wait ${waitMatch[1]} seconds`;
+                        } else {
+                            errorMsg = 'Rate limit: Please wait 60 seconds';
+                        }
+                    }
+                    aiBox.innerHTML = `<span class="text-danger">AI Analysis: ${errorMsg}</span>`;
                 }
                 
                 // Add a small delay between requests to avoid rate limits
