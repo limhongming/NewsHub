@@ -522,13 +522,7 @@ public class NewsSystemService {
     }
 
     private ApiResult callGeminiApiWithFallback(String prompt, String preferredModel) {
-        // Check if we're in rate limit cooldown
         long now = System.currentTimeMillis();
-        if (now - lastRateLimitTime < RATE_LIMIT_COOLDOWN_MS) {
-            throw new RuntimeException("Rate limit cooldown active. Please wait " + 
-                ((RATE_LIMIT_COOLDOWN_MS - (now - lastRateLimitTime)) / 1000) + " seconds.");
-        }
-        
         // Global request throttling: ensure minimum interval between any Gemini API calls
         synchronized (this) {
             long timeSinceLastRequest = now - lastRequestTime;
@@ -596,7 +590,7 @@ public class NewsSystemService {
             }
             
             if (modelsToTry.isEmpty()) {
-                throw new RuntimeException("All models are in cooldown. Please wait and try again.");
+                throw new RuntimeException("All models are temporarily unavailable. Please try again in a few minutes.");
             }
             
             System.out.println("DEBUG: Will try " + modelsToTry.size() + " models sequentially: " + String.join(", ", modelsToTry));
@@ -678,8 +672,12 @@ public class NewsSystemService {
             }
             
             // All models failed
-            throw new RuntimeException("All " + modelsToTry.size() + " models failed. Last rate limit was " + 
-                ((System.currentTimeMillis() - lastRateLimitTime) / 1000) + " seconds ago.");
+            long secondsSinceLastRateLimit = (System.currentTimeMillis() - lastRateLimitTime) / 1000;
+            if (secondsSinceLastRateLimit < 60) {
+                throw new RuntimeException("API rate limit reached. Please wait " + (60 - secondsSinceLastRateLimit) + " seconds and try again.");
+            } else {
+                throw new RuntimeException("All models temporarily unavailable. Please try again in a few minutes.");
+            }
         } finally {
             // Clean up pending request
             synchronized (lock) {
