@@ -21,7 +21,7 @@
         .nav-tabs { border-bottom: 1px solid #ff9900; margin-bottom: 20px; }
 
         /* Cards */
-        .news-card { 
+        .news-card {    
             background-color: #1b1b1b; 
             border: none; 
             color: #ffffff;
@@ -191,7 +191,10 @@
         
         <ul class="nav nav-tabs" id="newsTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="bbc-tab" data-bs-toggle="tab" data-bs-target="#bbc-pane" type="button" role="tab" aria-selected="true" onclick="switchTab('bbc')">BBC AI Analyzed</button>
+                <button class="nav-link active" id="bbc-new-tab" data-bs-toggle="tab" data-bs-target="#bbc-new-pane" type="button" role="tab" aria-selected="true" onclick="switchTab('bbc-new')">BBC AI Analyzed</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="bbc-summarized-tab" data-bs-toggle="tab" data-bs-target="#bbc-summarized-pane" type="button" role="tab" aria-selected="false" onclick="switchTab('bbc-summarized')">BBC Summarized</button>
             </li>
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="cnn-tab" data-bs-toggle="tab" data-bs-target="#cnn-pane" type="button" role="tab" aria-selected="false" onclick="switchTab('cnn')">CNN AI Analyzed</button>
@@ -199,10 +202,16 @@
         </ul>
 
         <div class="tab-content" id="myTabContent">
-            <!-- BBC PANE -->
-            <div class="tab-pane fade show active" id="bbc-pane" role="tabpanel" aria-labelledby="bbc-tab">
-                <div id="bbc-status-bar" class="d-none"></div>
-                <div class="row g-4" id="bbc-container"></div>
+            <!-- BBC NEW PANE (Unanalyzed articles) -->
+            <div class="tab-pane fade show active" id="bbc-new-pane" role="tabpanel" aria-labelledby="bbc-new-tab">
+                <div id="bbc-new-status-bar" class="d-none"></div>
+                <div class="row g-4" id="bbc-new-container"></div>
+            </div>
+
+            <!-- BBC SUMMARIZED PANE (Analyzed articles) -->
+            <div class="tab-pane fade" id="bbc-summarized-pane" role="tabpanel" aria-labelledby="bbc-summarized-tab">
+                <div id="bbc-summarized-status-bar" class="d-none"></div>
+                <div class="row g-4" id="bbc-summarized-container"></div>
             </div>
 
             <!-- CNN MERGED PANE -->
@@ -262,7 +271,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let currentTab = 'bbc';
+        let currentTab = 'bbc-new';
 
         function normalizeUrl(url) {
             if (!url) return '';
@@ -514,33 +523,140 @@
             }
         }
 
-        async function loadBBCArticlesWithCache(container, rawItems, lang, model, forceRefresh) {
-            showStatusBar('bbc', `Analyzing ${rawItems.length} articles...`, true);
-            let analyzedCount = 0;
-            let cachedCount = 0;
+        async function loadBBCArticlesSeparated(forceRefresh = false) {
+            const lang = document.getElementById('lang-select').value;
+            const model = document.getElementById('model-select').value;
+            const newContainer = document.getElementById('bbc-new-container');
+            const summarizedContainer = document.getElementById('bbc-summarized-container');
             
-            for (const item of rawItems) {
-                // Find the card for this article
-                const cardWrapper = Array.from(container.children).find(card => 
-                    card.dataset.normalizedLink === normalizeUrl(item.link)
-                );
-                if (!cardWrapper) continue;
+            showStatusBar('bbc-new', 'Fetching BBC headlines...', true);
+            showStatusBar('bbc-summarized', 'Loading summarized articles...', false);
+            
+            try {
+                const rawResponse = await fetch('/api/news');
+                const rawItems = await rawResponse.json();
                 
-                const aiBox = cardWrapper.querySelector('.ai-placeholder');
-                if (!aiBox) continue;
+                // Clear containers
+                newContainer.innerHTML = '';
+                summarizedContainer.innerHTML = '';
                 
-                // Check cache first
-                if (!forceRefresh) {
+                if (!rawItems || rawItems.length === 0) {
+                    newContainer.innerHTML = '<div class="col-12 text-center text-muted">No BBC news found.</div>';
+                    summarizedContainer.innerHTML = '<div class="col-12 text-center text-muted">No summarized articles.</div>';
+                    return;
+                }
+                
+                let analyzedCount = 0;
+                let unanalyzedCount = 0;
+                
+                // Separate articles based on cache
+                for (const item of rawItems) {
                     const cached = getCachedArticleAnalysis(item.link, lang, model);
-                    if (cached) {
-                        updateCardWithAnalysis(cardWrapper, cached.analysis, aiBox);
-                        cachedCount++;
-                        continue;
+                    
+                    if (cached && !forceRefresh) {
+                        // Article has cached analysis - put in summarized container
+                        const card = createArticleCard(item, cached.analysis, true);
+                        summarizedContainer.appendChild(card);
+                        analyzedCount++;
+                    } else {
+                        // Article has no cache or force refresh - put in new container
+                        const card = createArticleCard(item, null, false);
+                        newContainer.appendChild(card);
+                        unanalyzedCount++;
                     }
                 }
                 
-                // If not cached or forcing refresh, analyze
-                analyzedCount++;
+                // Show status
+                showStatusBar('bbc-new', `${unanalyzedCount} new articles to analyze.`, false);
+                showStatusBar('bbc-summarized', `${analyzedCount} articles already summarized.`, false);
+                
+                // If there are unanalyzed articles, analyze them
+                if (unanalyzedCount > 0) {
+                    await analyzeUncachedArticles(newContainer, rawItems.filter(item => {
+                        const cached = getCachedArticleAnalysis(item.link, lang, model);
+                        return !cached || forceRefresh;
+                    }), lang, model, forceRefresh);
+                }
+                
+            } catch (error) {
+                console.error('Error loading BBC articles:', error);
+                showStatusBar('bbc-new', 'Error: ' + error.message, false);
+                showStatusBar('bbc-summarized', 'Error loading summarized articles.', false);
+            }
+        }
+        
+        function createArticleCard(item, analysis, isAnalyzed) {
+            const card = document.createElement('div');
+            card.className = 'col-md-6 col-lg-4';
+            card.dataset.normalizedLink = normalizeUrl(item.link);
+            card.dataset.originalUrl = item.link;
+            
+            if (isAnalyzed && analysis) {
+                // Card for analyzed article (shows analysis)
+                const rating = analysis.impact_rating || 'N/A';
+                let ratingClass = 'text-secondary';
+                if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
+                else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
+                const uniqueId = 'details-inline-' + Math.random().toString(36).substr(2, 9);
+                
+                card.innerHTML = `
+                    <div class="card news-card">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title text-light">${item.title}</h5>
+                            <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>
+                            <p class="card-text text-secondary flex-grow-1 small">${item.summary || 'Fetching...'}</p>
+                            <div class="mt-3 border-top border-secondary pt-3">
+                                <h6 class="text-warning small text-uppercase mb-1">AI Summary</h6>
+                                <p class="text-white small">${analysis.summary}</p>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge bg-dark border border-secondary text-secondary">Impact: <span class="${ratingClass}">${rating}/10</span></span>
+                                    <span class="text-secondary" style="font-size: 0.65rem">${analysis.modelUsed || ''}</span>
+                                    <button class="btn btn-sm btn-link text-warning p-0 text-decoration-none" style="font-size: 0.8rem" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">Show Impacts ▼</button>
+                                </div>
+                                <div class="collapse" id="${uniqueId}">
+                                    <div class="card card-body bg-dark border border-secondary p-2">
+                                        <p class="mb-1 small"><strong class="text-info">Economic:</strong> ${analysis.economic_impact}</p>
+                                        <p class="mb-1 small"><strong class="text-info">Global:</strong> ${analysis.global_impact}</p>
+                                        <p class="mb-0 small"><strong class="text-info">Next:</strong> ${analysis.what_next}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100">Read Full Article</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Card for unanalyzed article (shows loading placeholder)
+                card.innerHTML = `
+                    <div class="card news-card">
+                        <div class="card-body d-flex flex-column">
+                            <h5 class="card-title text-light">${item.title}</h5>
+                            <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>
+                            <p class="card-text text-secondary flex-grow-1 small">${item.summary || 'Fetching...'}</p>
+                            <div class="ai-placeholder mt-3">
+                                <div class="d-flex align-items-center loading-label">
+                                    <div class="spinner-grow spinner-grow-sm text-warning me-2" role="status"></div>
+                                    <span>AI Analysis: Still Loading...</span>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100">Read Full Article</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            return card;
+        }
+        
+        async function analyzeUncachedArticles(container, items, lang, model, forceRefresh) {
+            showStatusBar('bbc-new', `Analyzing ${items.length} articles...`, true);
+            let analyzedCount = 0;
+            
+            for (const item of items) {
                 try {
                     const response = await fetch('/api/analyze/snippet', {
                         method: 'POST',
@@ -557,41 +673,58 @@
                     if (response.ok) {
                         const cluster = await response.json();
                         setCachedArticleAnalysis(item.link, lang, model, cluster);
-                        updateCardWithAnalysis(cardWrapper, cluster, aiBox);
+                        analyzedCount++;
+                        
+                        // Move card from new container to summarized container
+                        moveCardToSummarized(item.link, cluster);
                     } else {
                         const errorText = await response.text();
-                        let errorMsg = `AI Analysis: Failed (${response.status})`;
-                        try {
-                            const errorJson = JSON.parse(errorText);
-                            if (errorJson.message) errorMsg = `AI Analysis: ${errorJson.message}`;
-                            else if (typeof errorJson === 'string') errorMsg = `AI Analysis: ${errorJson}`;
-                        } catch {
-                            if (errorText) errorMsg = `AI Analysis: ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}`;
-                        }
-                        aiBox.innerHTML = `<span class="text-danger">${errorMsg}</span>`;
+                        console.error('Analysis failed:', errorText);
                     }
                 } catch (error) {
                     console.error('Error analyzing article:', error);
-                    let errorMsg = error.message || 'Network error';
-                    if (errorMsg.includes('Rate limit')) {
-                        // Extract wait time if available
-                        const waitMatch = errorMsg.match(/(\d+)\s+seconds/);
-                        if (waitMatch) {
-                            errorMsg = `Rate limit: Please wait ${waitMatch[1]} seconds`;
-                        } else {
-                            errorMsg = 'Rate limit: Please wait 60 seconds';
-                        }
-                    }
-                    aiBox.innerHTML = `<span class="text-danger">AI Analysis: ${errorMsg}</span>`;
                 }
                 
-                // Add a small delay between requests to avoid rate limits
-                if (analyzedCount < rawItems.length) {
+                // Add delay between requests to avoid rate limits
+                if (analyzedCount < items.length) {
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
             }
             
-            showStatusBar('bbc', `Analysis complete. ${cachedCount} cached, ${analyzedCount} new`, false);
+            showStatusBar('bbc-new', `Analysis complete. ${analyzedCount} articles analyzed.`, false);
+        }
+        
+        function moveCardToSummarized(articleUrl, analysis) {
+            const newContainer = document.getElementById('bbc-new-container');
+            const summarizedContainer = document.getElementById('bbc-summarized-container');
+            const normalizedUrl = normalizeUrl(articleUrl);
+            
+            // Find card in new container
+            const cardToMove = Array.from(newContainer.children).find(card => 
+                card.dataset.normalizedLink === normalizedUrl
+            );
+            
+            if (cardToMove) {
+                // Remove from new container
+                newContainer.removeChild(cardToMove);
+                
+                // Create new analyzed card
+                const item = {
+                    title: cardToMove.querySelector('.card-title').textContent,
+                    published: cardToMove.querySelector('.card-subtitle').textContent,
+                    summary: cardToMove.querySelector('.card-text').textContent,
+                    link: cardToMove.dataset.originalUrl
+                };
+                
+                const newCard = createArticleCard(item, analysis, true);
+                summarizedContainer.appendChild(newCard);
+                
+                // Update status counts
+                const unanalyzedCount = newContainer.children.length;
+                const analyzedCount = summarizedContainer.children.length;
+                showStatusBar('bbc-new', `${unanalyzedCount} new articles to analyze.`, false);
+                showStatusBar('bbc-summarized', `${analyzedCount} articles already summarized.`, false);
+            }
         }
 
         function updateCardWithAnalysis(cardWrapper, cluster, aiBox) {
@@ -621,10 +754,21 @@
             `;
         }
 
-        function loadBBCMerged(forceRefresh = false) { loadFeed('bbc', '/api/news', '/api/news/bbc/merged', forceRefresh); }
+        function loadBBCSeparated(forceRefresh = false) {
+            // This function will be implemented below
+            loadBBCArticlesSeparated(forceRefresh);
+        }
         function loadCNNMerged(forceRefresh = false) { loadFeed('cnn', '/api/news/cnn', '/api/news/merged', forceRefresh); }
-        function switchTab(tab) { currentTab = tab; if (tab === 'bbc') loadBBCMerged(); if (tab === 'cnn') loadCNNMerged(); }
-        function refreshCurrentTab() { if (currentTab === 'bbc') loadBBCMerged(true); else loadCNNMerged(true); }
+        function switchTab(tab) { 
+            currentTab = tab; 
+            if (tab === 'bbc-new') loadBBCSeparated(); 
+            if (tab === 'bbc-summarized') loadBBCSeparated(); // This will load both, but show the summarized tab
+            if (tab === 'cnn') loadCNNMerged(); 
+        }
+        function refreshCurrentTab() { 
+            if (currentTab === 'bbc-new' || currentTab === 'bbc-summarized') loadBBCSeparated(true); 
+            else if (currentTab === 'cnn') loadCNNMerged(true); 
+        }
 
         async function openAnalysisModal(title, url) {
             const loader = document.getElementById('global-loader');
@@ -762,7 +906,7 @@
         
         window.onload = function() { 
             loadModels(); 
-            loadBBCMerged(); 
+            loadBBCSeparated(); 
             updateRefreshButton(); // Initial button state
         };
     </script>
