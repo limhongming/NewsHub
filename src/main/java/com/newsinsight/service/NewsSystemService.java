@@ -34,23 +34,43 @@ public class NewsSystemService {
     @Value("${gemini.api.key}")
     private String apiKey;
 
-    // Optimized model order: prioritize free/cheaper models first, then premium
-    // Order based on cost and rate limit tolerance
+    // Official Gemini models - production-ready, stable models only
+    // Ordered by cost/performance: free/cheaper models first, then premium
     private static final List<String> FALLBACK_MODELS = List.of(
-        "gemini-2.0-flash-lite-001",  // Cheapest/free tier, highest rate limits
-        "gemini-2.5-flash-lite",      // Free tier, good for simple analysis
-        "gemini-2.0-flash",           // Standard free tier
-        "gemini-2.0-flash-001",       // Alternative free tier
-        "gemini-2.5-flash"            // Premium (if available)
+        // Free tier models (highest rate limits, lowest cost)
+        "gemini-2.0-flash-lite",      // Official free tier
+        "gemini-2.0-flash-lite-001",  // Alternative free tier variant
+        "gemini-2.5-flash-lite",      // Latest free tier with improved capabilities
+        
+        // Standard tier models (good balance of cost and performance)
+        "gemini-2.0-flash",           // Official standard tier
+        "gemini-2.0-flash-001",       // Alternative standard variant
+        "gemini-2.5-flash",           // Latest premium with best performance
+        
+        // Pro models (higher cost, better for complex tasks)
+        "gemini-2.0-pro",             // Pro version for complex reasoning
+        "gemini-1.5-pro"              // Legacy pro model (if still available)
     );
     
     // Model cost/priority mapping (lower number = higher priority for cost savings)
+    // Updated to include all official models
     private static final Map<String, Integer> MODEL_PRIORITY = Map.of(
-        "gemini-2.0-flash-lite-001", 1,
-        "gemini-2.5-flash-lite", 2,
-        "gemini-2.0-flash", 3,
-        "gemini-2.0-flash-001", 4,
-        "gemini-2.5-flash", 5
+        "gemini-2.0-flash-lite", 1,
+        "gemini-2.0-flash-lite-001", 2,
+        "gemini-2.5-flash-lite", 3,
+        "gemini-2.0-flash", 4,
+        "gemini-2.0-flash-001", 5,
+        "gemini-2.5-flash", 6,
+        "gemini-2.0-pro", 7,
+        "gemini-1.5-pro", 8
+    );
+    
+    // Official model patterns - used to filter experimental/preview models
+    private static final List<String> OFFICIAL_MODEL_PATTERNS = List.of(
+        "gemini-\\d+\\.\\d+-flash-lite(-\\d+)?",      // Flash Lite variants
+        "gemini-\\d+\\.\\d+-flash(-\\d+)?",           // Flash variants  
+        "gemini-\\d+\\.\\d+-pro(-\\d+)?",             // Pro variants
+        "gemini-\\d+\\.\\d+-pro-vision(-\\d+)?"       // Pro Vision variants
     );
 
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
@@ -103,28 +123,56 @@ public class NewsSystemService {
                 if (modelsObj instanceof List) {
                     List<?> modelsList = (List<?>) modelsObj;
                     List<GeminiModel> geminiModels = new ArrayList<>();
-                    geminiModels.add(new GeminiModel("gemini-2.5-flash-lite", "v1beta", "Gemini 2.5 Flash-Lite", "Highest Volume (1000 RPD)", 1000000, 65535));
+                    
+                    // Add our predefined official models first (ensuring they're always shown)
+                    for (String modelName : FALLBACK_MODELS) {
+                        geminiModels.add(new GeminiModel(
+                            modelName,
+                            "v1beta",
+                            getDisplayNameForModel(modelName),
+                            getDescriptionForModel(modelName),
+                            getDefaultInputTokens(modelName),
+                            getDefaultOutputTokens(modelName)
+                        ));
+                    }
+                    
+                    // Then add any other official models from the API response
                     for (Object obj : modelsList) {
                         if (obj instanceof Map) {
                             Map<?, ?> m = (Map<?, ?>) obj;
                             String name = (String) m.get("name"); 
                             if (name != null && name.contains("gemini")) {
                                 String shortName = name.replace("models/", "");
-                                if (shortName.equals("gemini-2.5-flash-lite")) continue;
-                                Object version = m.get("version");
-                                Object displayName = m.get("displayName");
-                                Object description = m.get("description");
-                                Object inputTokenLimit = m.get("inputTokenLimit");
-                                Object outputTokenLimit = m.get("outputTokenLimit");
                                 
-                                geminiModels.add(new GeminiModel(
-                                    shortName, 
-                                    version != null ? (String) version : "", 
-                                    displayName != null ? (String) displayName : "",
-                                    description != null ? (String) description : "",
-                                    inputTokenLimit != null ? ((Number) inputTokenLimit).intValue() : 0,
-                                    outputTokenLimit != null ? ((Number) outputTokenLimit).intValue() : 0
-                                ));
+                                // Skip if already in our predefined list
+                                if (FALLBACK_MODELS.contains(shortName)) continue;
+                                
+                                // Check if this is an official model (matches our patterns)
+                                boolean isOfficial = false;
+                                for (String pattern : OFFICIAL_MODEL_PATTERNS) {
+                                    if (shortName.matches(pattern)) {
+                                        isOfficial = true;
+                                        break;
+                                    }
+                                }
+                                
+                                // Only add official models
+                                if (isOfficial) {
+                                    Object version = m.get("version");
+                                    Object displayName = m.get("displayName");
+                                    Object description = m.get("description");
+                                    Object inputTokenLimit = m.get("inputTokenLimit");
+                                    Object outputTokenLimit = m.get("outputTokenLimit");
+                                    
+                                    geminiModels.add(new GeminiModel(
+                                        shortName, 
+                                        version != null ? (String) version : "", 
+                                        displayName != null ? (String) displayName : "",
+                                        description != null ? (String) description : "",
+                                        inputTokenLimit != null ? ((Number) inputTokenLimit).intValue() : 0,
+                                        outputTokenLimit != null ? ((Number) outputTokenLimit).intValue() : 0
+                                    ));
+                                }
                             }
                         }
                     }
@@ -134,7 +182,48 @@ public class NewsSystemService {
         } catch (Exception e) { 
             e.printStackTrace(); 
         }
-        return List.of(new GeminiModel("gemini-2.5-flash-lite", "v1beta", "Gemini 2.5 Flash-Lite", "Manual Fallback", 1000000, 65535));
+        
+        // Fallback: return our predefined official models
+        List<GeminiModel> fallbackModels = new ArrayList<>();
+        for (String modelName : FALLBACK_MODELS) {
+            fallbackModels.add(new GeminiModel(
+                modelName,
+                "v1beta",
+                getDisplayNameForModel(modelName),
+                getDescriptionForModel(modelName),
+                getDefaultInputTokens(modelName),
+                getDefaultOutputTokens(modelName)
+            ));
+        }
+        return fallbackModels;
+    }
+    
+    private String getDisplayNameForModel(String modelName) {
+        if (modelName.contains("flash-lite")) return "Gemini Flash Lite";
+        if (modelName.contains("flash")) return "Gemini Flash";
+        if (modelName.contains("pro")) return "Gemini Pro";
+        return "Gemini Model";
+    }
+    
+    private String getDescriptionForModel(String modelName) {
+        if (modelName.contains("2.5")) return "Latest generation with improved capabilities";
+        if (modelName.contains("2.0")) return "Current stable version";
+        if (modelName.contains("1.5")) return "Previous generation, still supported";
+        return "Official Gemini model";
+    }
+    
+    private int getDefaultInputTokens(String modelName) {
+        if (modelName.contains("flash-lite")) return 1000000;
+        if (modelName.contains("flash")) return 1000000;
+        if (modelName.contains("pro")) return 2000000;
+        return 1000000;
+    }
+    
+    private int getDefaultOutputTokens(String modelName) {
+        if (modelName.contains("flash-lite")) return 8192;
+        if (modelName.contains("flash")) return 8192;
+        if (modelName.contains("pro")) return 8192;
+        return 8192;
     }
 
     public AnalysisResponse.AnalysisData analyzeText(String text) {
