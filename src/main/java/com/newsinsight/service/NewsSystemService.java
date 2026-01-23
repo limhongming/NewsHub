@@ -124,15 +124,20 @@ public class NewsSystemService {
     // Rate limiting tracking
     private volatile long lastRateLimitTime = 0;
     private static final long RATE_LIMIT_COOLDOWN_MS = 60000; // 1 minute cooldown after rate limit
-    private static final int MAX_RETRIES = 3;
-    private static final long INITIAL_RETRY_DELAY_MS = 1000; // 1 second
-    private static final long MAX_RETRY_DELAY_MS = 10000; // 10 seconds
+    private static final int MAX_RETRIES = 2; // Reduced retries to avoid hitting rate limits
+    private static final long INITIAL_RETRY_DELAY_MS = 5000; // Increased to 5 seconds
+    private static final long MAX_RETRY_DELAY_MS = 30000; // Increased to 30 seconds
     
     // API usage tracking
     private final ConcurrentMap<String, Integer> apiCallCounts = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Integer> rateLimitCounts = new ConcurrentHashMap<>();
     private volatile long lastUsageResetTime = System.currentTimeMillis();
     private static final long USAGE_RESET_INTERVAL_MS = 3600000; // 1 hour
+    
+    // Circuit breaker: track model failures to avoid repeatedly trying broken models
+    private final ConcurrentMap<String, Long> modelFailureTimes = new ConcurrentHashMap<>();
+    private static final long MODEL_FAILURE_COOLDOWN_MS = 300000; // 5 minutes cooldown for failed models
+    private static final long MIN_DELAY_BETWEEN_MODELS_MS = 10000; // 10 seconds minimum between model attempts
 
     private static class ApiResult {
         private final String text;
@@ -533,67 +538,98 @@ public class NewsSystemService {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
+            // Build list of models to try, filtering out models that are in cooldown
             List<String> modelsToTry = new ArrayList<>();
-            if (preferredModel != null && !preferredModel.isEmpty()) modelsToTry.add(preferredModel);
-            for (String m : FALLBACK_MODELS) if (!modelsToTry.contains(m)) modelsToTry.add(m);
-
-            List<String> errors = new ArrayList<>();
-            
-            // Exponential backoff with retries
-            for (int retry = 0; retry < MAX_RETRIES; retry++) {
-                for (String model : modelsToTry) {
-                    try {
-                        // Add delay between retries (exponential backoff)
-                        if (retry > 0) {
-                            long delay = Math.min(INITIAL_RETRY_DELAY_MS * (1L << (retry - 1)), MAX_RETRY_DELAY_MS);
-                            System.out.println("DEBUG: Retry " + retry + " for model " + model + " after " + delay + "ms delay");
-                            Thread.sleep(delay);
-                        }
-                        
-                        // Track API call attempt
-                        trackApiCall(model);
-                        
-                        String url = String.format(API_URL_TEMPLATE, model, apiKey);
-                        ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-                        
-                        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                            String extracted = extractTextFromResponse(response.getBody());
-                            if (extracted == null || extracted.isEmpty() || extracted.equals("{}")) {
-                                throw new RuntimeException("Safety Blocked/Empty");
-                            }
-                            System.out.println("DEBUG: Successfully called Gemini API with model: " + model);
-                            logApiUsage(model, true);
-                            return new ApiResult(extracted, model);
-                        }
-                    } catch (HttpClientErrorException e) {
-                        if (e.getStatusCode().value() == 429) {
-                            // Rate limit hit - update cooldown timer and track
-                            lastRateLimitTime = System.currentTimeMillis();
-                            trackRateLimit(model);
-                            System.out.println("WARN: Rate limit (429) hit for model " + model + ", activating cooldown");
-                            errors.add(model + ": " + e.getStatusCode() + " (Rate Limit)");
-                            continue; // Try next model
-                        } else if (e.getStatusCode().value() == 503 || e.getStatusCode().value() == 404) {
-                            errors.add(model + ": " + e.getStatusCode());
-                            continue; // Try next model
-                        }
-                        throw new RuntimeException("API Error (" + model + "): " + e.getResponseBodyAsString());
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException("Request interrupted");
-                    } catch (Exception e) { 
-                        errors.add(model + ": " + e.getMessage()); 
-                    }
-                }
-                
-                // If we've tried all models in this retry and failed, continue to next retry
-                if (retry < MAX_RETRIES - 1) {
-                    System.out.println("DEBUG: Retry " + (retry + 1) + " of " + MAX_RETRIES + " after all models failed");
+            if (preferredModel != null && !preferredModel.isEmpty()) {
+                if (!isModelInCooldown(preferredModel)) {
+                    modelsToTry.add(preferredModel);
+                } else {
+                    System.out.println("DEBUG: Preferred model " + preferredModel + " is in cooldown, skipping");
                 }
             }
             
-            // All retries exhausted
-            throw new RuntimeException("All models failed after " + MAX_RETRIES + " retries. Attempts: " + String.join(" | ", errors));
+            // Add other models that are not in cooldown
+            for (String model : FALLBACK_MODELS) {
+                if (!modelsToTry.contains(model) && !isModelInCooldown(model)) {
+                    modelsToTry.add(model);
+                }
+            }
+            
+            if (modelsToTry.isEmpty()) {
+                throw new RuntimeException("All models are in cooldown. Please wait and try again.");
+            }
+            
+            System.out.println("DEBUG: Will try " + modelsToTry.size() + " models sequentially: " + String.join(", ", modelsToTry));
+            
+            // Try models ONE BY ONE with significant delays between attempts
+            for (int i = 0; i < modelsToTry.size(); i++) {
+                String model = modelsToTry.get(i);
+                
+                try {
+                    // Add delay before trying this model (except for the first one)
+                    if (i > 0) {
+                        long delay = MIN_DELAY_BETWEEN_MODELS_MS;
+                        System.out.println("DEBUG: Waiting " + delay + "ms before trying model " + model + "...");
+                        Thread.sleep(delay);
+                    }
+                    
+                    // Track API call attempt
+                    trackApiCall(model);
+                    
+                    System.out.println("DEBUG: Attempting API call with model: " + model);
+                    String url = String.format(API_URL_TEMPLATE, model, apiKey);
+                    ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+                    
+                    if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                        String extracted = extractTextFromResponse(response.getBody());
+                        if (extracted == null || extracted.isEmpty() || extracted.equals("{}")) {
+                            System.out.println("WARN: Model " + model + " returned empty or safety-blocked response");
+                            markModelFailure(model);
+                            continue; // Try next model
+                        }
+                        System.out.println("DEBUG: SUCCESS! Called Gemini API with model: " + model);
+                        logApiUsage(model, true);
+                        return new ApiResult(extracted, model);
+                    } else {
+                        System.out.println("WARN: Model " + model + " returned non-2xx status: " + response.getStatusCode());
+                        markModelFailure(model);
+                    }
+                } catch (HttpClientErrorException e) {
+                    if (e.getStatusCode().value() == 429) {
+                        // Rate limit hit - update cooldown timer and track
+                        lastRateLimitTime = System.currentTimeMillis();
+                        trackRateLimit(model);
+                        markModelFailure(model);
+                        System.out.println("WARN: Rate limit (429) hit for model " + model + ", activating cooldown");
+                        
+                        // If we hit rate limit, wait longer before trying next model
+                        if (i < modelsToTry.size() - 1) {
+                            long extraDelay = 15000; // 15 seconds extra delay after rate limit
+                            System.out.println("DEBUG: Rate limit hit, waiting " + extraDelay + "ms before next model...");
+                            Thread.sleep(extraDelay);
+                        }
+                    } else if (e.getStatusCode().value() == 503 || e.getStatusCode().value() == 404) {
+                        System.out.println("WARN: Model " + model + " unavailable: " + e.getStatusCode());
+                        markModelFailure(model);
+                        // Continue to next model
+                    } else {
+                        System.out.println("ERROR: API Error for model " + model + ": " + e.getResponseBodyAsString());
+                        markModelFailure(model);
+                    }
+                } catch (Exception e) {
+                    System.out.println("ERROR: Unexpected error with model " + model + ": " + e.getMessage());
+                    markModelFailure(model);
+                }
+                
+                // If this wasn't the last model, continue to next one
+                if (i < modelsToTry.size() - 1) {
+                    System.out.println("DEBUG: Model " + model + " failed, moving to next model...");
+                }
+            }
+            
+            // All models failed
+            throw new RuntimeException("All " + modelsToTry.size() + " models failed. Last rate limit was " + 
+                ((System.currentTimeMillis() - lastRateLimitTime) / 1000) + " seconds ago.");
         } finally {
             // Clean up pending request
             synchronized (lock) {
@@ -601,6 +637,26 @@ public class NewsSystemService {
                 lock.notifyAll();
             }
         }
+    }
+    
+    private boolean isModelInCooldown(String model) {
+        Long failureTime = modelFailureTimes.get(model);
+        if (failureTime == null) return false;
+        
+        long timeSinceFailure = System.currentTimeMillis() - failureTime;
+        if (timeSinceFailure >= MODEL_FAILURE_COOLDOWN_MS) {
+            // Cooldown expired, remove from tracking
+            modelFailureTimes.remove(model);
+            return false;
+        }
+        
+        System.out.println("DEBUG: Model " + model + " is in cooldown for " + 
+            ((MODEL_FAILURE_COOLDOWN_MS - timeSinceFailure) / 1000) + " more seconds");
+        return true;
+    }
+    
+    private void markModelFailure(String model) {
+        modelFailureTimes.put(model, System.currentTimeMillis());
     }
     
     private void trackApiCall(String model) {
