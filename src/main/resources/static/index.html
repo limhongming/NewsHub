@@ -513,17 +513,49 @@
             loader.style.display = 'block';
             try {
                 const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) });
-                const data = await response.json();
+                
                 if (response.ok) {
+                    const data = await response.json();
                     const ai = data.analysis;
-                    summaryEl.innerText = ai.summary || "No summary provided."; econEl.innerText = ai.economic_impact || "N/A"; worldEl.innerText = ai.global_impact || "N/A"; scoreEl.innerText = ai.impact_rating || "?"; articleEl.innerText = data.full_text || "No text.";
-                    const urgency = (ai.urgency || "Unknown").toString(); urgencyEl.innerText = urgency.toUpperCase(); urgencyEl.className = "impact-badge";
-                    const urg = urgency.toLowerCase(); if (urg.includes('high') || urg.includes('critical')) urgencyEl.classList.add('bg-danger', 'text-white'); else if (urg.includes('medium')) urgencyEl.classList.add('bg-warning', 'text-dark'); else urgencyEl.classList.add('bg-success', 'text-white');
+                    summaryEl.innerText = ai.summary || "No summary provided."; 
+                    econEl.innerText = ai.economic_impact || "N/A"; 
+                    worldEl.innerText = ai.global_impact || "N/A"; 
+                    scoreEl.innerText = ai.impact_rating || "?"; 
+                    articleEl.innerText = data.full_text || "No text.";
+                    const urgency = (ai.urgency || "Unknown").toString(); 
+                    urgencyEl.innerText = urgency.toUpperCase(); 
+                    urgencyEl.className = "impact-badge";
+                    const urg = urgency.toLowerCase(); 
+                    if (urg.includes('high') || urg.includes('critical')) {
+                        urgencyEl.classList.add('bg-danger', 'text-white');
+                    } else if (urg.includes('medium')) {
+                        urgencyEl.classList.add('bg-warning', 'text-dark');
+                    } else {
+                        urgencyEl.classList.add('bg-success', 'text-white');
+                    }
                 } else {
-                    articleEl.innerText = "Error: " + data.error;
+                    // Try to parse error message from response
+                    let errorMsg;
+                    try {
+                        // Try to parse as JSON
+                        const errorData = await response.json();
+                        errorMsg = errorData.error || errorData.message || `Error ${response.status}: ${response.statusText}`;
+                    } catch (parseError) {
+                        // If not JSON, try as text
+                        errorMsg = await response.text();
+                        if (!errorMsg) {
+                            errorMsg = `Error ${response.status}: ${response.statusText}`;
+                        }
+                    }
+                    articleEl.innerText = `Error: ${errorMsg}`;
                 }
                 modalElement.show();
-            } catch(e) { articleEl.innerText = "Connection Failed."; modalElement.show(); } finally { loader.style.display = 'none'; }
+            } catch(e) { 
+                articleEl.innerText = "Connection Failed: " + e.message; 
+                modalElement.show(); 
+            } finally { 
+                loader.style.display = 'none'; 
+            }
         }
 
         async function loadModels() {

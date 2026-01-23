@@ -96,20 +96,50 @@ public class NewsController {
 
         try {
             // 1. Scrape
-            String content = newsService.scrapeArticleContent(request.url());
+            System.out.println("INFO: Starting article analysis for URL: " + request.url());
+            String content;
+            try {
+                content = newsService.scrapeArticleContent(request.url());
+            } catch (Exception scrapeException) {
+                System.err.println("ERROR: Failed to scrape article content: " + scrapeException.getMessage());
+                // Differentiate between scraping failures and other errors
+                String errorMsg = scrapeException.getMessage();
+                if (errorMsg.contains("blocking access") || errorMsg.contains("temporarily unavailable")) {
+                    return ResponseEntity.status(503).body("Service Unavailable: " + errorMsg);
+                } else if (errorMsg.contains("content not found") || errorMsg.contains("too short")) {
+                    return ResponseEntity.status(404).body("Not Found: " + errorMsg);
+                } else {
+                    return ResponseEntity.status(500).body("Scraping Failed: " + errorMsg);
+                }
+            }
             
             if (content == null || content.isEmpty()) {
                 return ResponseEntity.badRequest().body("Could not scrape content from URL.");
             }
 
+            System.out.println("INFO: Successfully scraped " + content.length() + " characters, now analyzing...");
+            
             // 2. Analyze
-            AnalysisResponse.AnalysisData analysisData = newsSystemService.analyzeText(content);
+            AnalysisResponse.AnalysisData analysisData;
+            try {
+                analysisData = newsSystemService.analyzeText(content);
+            } catch (Exception analysisException) {
+                System.err.println("ERROR: Failed to analyze article content: " + analysisException.getMessage());
+                // If analysis fails, still return the scraped content with a note
+                return ResponseEntity.ok(new AnalysisResponse(
+                    new AnalysisResponse.AnalysisData("Analysis Failed: " + analysisException.getMessage()),
+                    content
+                ));
+            }
             
             // 3. Return Combined Response
+            System.out.println("INFO: Analysis complete for URL: " + request.url());
             return ResponseEntity.ok(new AnalysisResponse(analysisData, content));
 
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+            System.err.println("ERROR: Unexpected error in analyzeNews: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Unexpected Error: " + e.getMessage());
         }
     }
 
