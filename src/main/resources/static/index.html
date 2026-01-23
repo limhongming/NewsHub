@@ -421,6 +421,34 @@
                 const rawItems = await rawResponse.json();
                 const isBBC = tabName === 'bbc';
                 renderRawItems(container, rawItems, isBBC);
+                
+                // Health check: test if Gemini API is available before attempting analysis
+                showStatusBar(tabName, 'Checking AI service availability...', true);
+                let healthCheckPassed = false;
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    const healthResponse = await fetch('/api/health', { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    if (healthResponse.ok) {
+                        const health = await healthResponse.json();
+                        if (health.status === 'UP') {
+                            healthCheckPassed = true;
+                            console.log('Health check passed:', health.message);
+                        } else {
+                            console.error('Health check failed:', health.message);
+                            showStatusBar(tabName, 'AI service is unavailable: ' + health.message, false);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Health check failed:', error);
+                    showStatusBar(tabName, 'AI service health check failed. Using raw news only.', false);
+                }
+                if (!healthCheckPassed) {
+                    updateCardsWithClusters(container, [], isBBC);
+                    return;
+                }
+
                 showStatusBar(tabName, `AI (${model}) is analyzing & translating to ${lang}...`, true);
                 const aiResponse = await fetch(`${aiEndpoint}?lang=${lang}&model=${model}`);
                 const clusters = await aiResponse.json();

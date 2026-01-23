@@ -713,6 +713,35 @@ public class NewsSystemService {
         return stats;
     }
 
+    /**
+     * Health check for Gemini API.
+     * Returns a map with status and message.
+     */
+    public Map<String, String> checkGeminiHealth() {
+        Map<String, String> result = new HashMap<>();
+        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
+            result.put("status", "DOWN");
+            result.put("message", "API key is not configured. Please set gemini.api.key in application.properties.");
+            return result;
+        }
+        try {
+            // Make a lightweight call to list models (which is the same as the models endpoint)
+            String url = String.format(MODELS_API_URL, apiKey);
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, null, Map.class);
+            if (response.getStatusCode().is2xxSuccessful()) {
+                result.put("status", "UP");
+                result.put("message", "Gemini API is accessible.");
+            } else {
+                result.put("status", "DOWN");
+                result.put("message", "Gemini API returned non-2xx status: " + response.getStatusCode());
+            }
+        } catch (Exception e) {
+            result.put("status", "DOWN");
+            result.put("message", "Gemini API is unavailable: " + e.getMessage());
+        }
+        return result;
+    }
+
     private List<MergedNewsCluster> parseClusterJsonFromAI(String rawText) {
         try {
             String jsonText = rawText.replace("```json", "").replace("```", "").trim();
