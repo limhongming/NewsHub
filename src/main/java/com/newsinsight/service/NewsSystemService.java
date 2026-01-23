@@ -374,7 +374,12 @@ public class NewsSystemService {
                 if (i < items.size() - 1) {
                     long delay = 2000 + (long)(Math.random() * 3000); // 2-5 seconds
                     System.out.println("DEBUG: Waiting " + delay + "ms before next article...");
-                    Thread.sleep(delay);
+                    try {
+                        Thread.sleep(delay);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Request interrupted during article delay");
+                    }
                 }
                 
             } catch (Exception e) {
@@ -570,7 +575,12 @@ public class NewsSystemService {
                     if (i > 0) {
                         long delay = MIN_DELAY_BETWEEN_MODELS_MS;
                         System.out.println("DEBUG: Waiting " + delay + "ms before trying model " + model + "...");
-                        Thread.sleep(delay);
+                        try {
+                            Thread.sleep(delay);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("Request interrupted during model delay");
+                        }
                     }
                     
                     // Track API call attempt
@@ -606,7 +616,12 @@ public class NewsSystemService {
                         if (i < modelsToTry.size() - 1) {
                             long extraDelay = 15000; // 15 seconds extra delay after rate limit
                             System.out.println("DEBUG: Rate limit hit, waiting " + extraDelay + "ms before next model...");
-                            Thread.sleep(extraDelay);
+                            try {
+                                Thread.sleep(extraDelay);
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                throw new RuntimeException("Request interrupted during rate limit delay");
+                            }
                         }
                     } else if (e.getStatusCode().value() == 503 || e.getStatusCode().value() == 404) {
                         System.out.println("WARN: Model " + model + " unavailable: " + e.getStatusCode());
