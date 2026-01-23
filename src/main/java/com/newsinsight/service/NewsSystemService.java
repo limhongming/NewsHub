@@ -739,11 +739,23 @@ public class NewsSystemService {
             result.put("status", "DOWN");
             result.put("message", "API key is not configured. Please set gemini.api.key in application.properties.");
             result.put("rawResponse", "{}");
+            result.put("debugInfo", "API key is not configured");
             return result;
         }
+        
+        // Create debug info about the request (mask API key for security)
+        String apiKeyMasked = apiKey.length() > 8 ? 
+            apiKey.substring(0, 4) + "..." + apiKey.substring(apiKey.length() - 4) : 
+            "***";
+        String url = String.format(MODELS_API_URL, apiKey);
+        String urlForLogging = String.format(MODELS_API_URL, apiKeyMasked);
+        result.put("requestUrl", urlForLogging);
+        result.put("apiKeyPresent", "true");
+        result.put("apiKeyLength", String.valueOf(apiKey.length()));
+        
         try {
             // Make a lightweight call to list models with health check RestTemplate (shorter timeouts)
-            String url = String.format(MODELS_API_URL, apiKey);
+            System.out.println("DEBUG: Checking Gemini API health at URL: " + urlForLogging);
             ResponseEntity<Map> response = healthCheckRestTemplate.exchange(url, HttpMethod.GET, null, Map.class);
             
             // Add raw response (as JSON string) to result
@@ -757,6 +769,7 @@ public class NewsSystemService {
             }
             result.put("rawResponse", rawResponseJson);
             result.put("httpStatus", String.valueOf(response.getStatusCode().value()));
+            result.put("httpStatusText", response.getStatusCode().toString());
             
             if (response.getStatusCode().is2xxSuccessful()) {
                 result.put("status", "UP");
@@ -766,44 +779,52 @@ public class NewsSystemService {
                 result.put("message", "Rate limit exceeded (429). Please wait before trying again.");
             } else if (response.getStatusCode().value() == 404) {
                 result.put("status", "DOWN");
-                result.put("message", "API endpoint not found (404). The Gemini API may have changed.");
+                result.put("message", "API endpoint not found (404). The Gemini API may have changed. Request URL: " + urlForLogging);
             } else if (response.getStatusCode().value() == 503) {
                 result.put("status", "DOWN");
                 result.put("message", "Service unavailable (503). Gemini API is temporarily down.");
             } else {
                 result.put("status", "DOWN");
-                result.put("message", "Gemini API returned error: " + response.getStatusCode());
+                result.put("message", "Gemini API returned error: " + response.getStatusCode() + ". Request URL: " + urlForLogging);
             }
         } catch (org.springframework.web.client.ResourceAccessException e) {
             // This includes connect timeout, read timeout, etc.
             if (e.getMessage() != null && e.getMessage().contains("timeout")) {
                 result.put("status", "DOWN");
-                result.put("message", "Connection timeout. Gemini API is not responding within 10 seconds.");
+                result.put("message", "Connection timeout. Gemini API is not responding within 10 seconds. Request URL: " + urlForLogging);
             } else {
                 result.put("status", "DOWN");
-                result.put("message", "Network error: " + e.getMessage());
+                result.put("message", "Network error: " + e.getMessage() + ". Request URL: " + urlForLogging);
             }
             result.put("rawResponse", "{\"error\": \"" + e.getClass().getSimpleName() + "\", \"message\": \"" + e.getMessage().replace("\"", "\\\"") + "\"}");
             result.put("httpStatus", "0");
+            result.put("errorType", e.getClass().getSimpleName());
         } catch (org.springframework.web.client.HttpClientErrorException e) {
             String rawResponse = e.getResponseBodyAsString();
             result.put("rawResponse", rawResponse != null ? rawResponse : "{}");
             result.put("httpStatus", String.valueOf(e.getStatusCode().value()));
+            result.put("httpStatusText", e.getStatusCode().toString());
+            result.put("errorType", e.getClass().getSimpleName());
+            
             if (e.getStatusCode().value() == 429) {
                 result.put("status", "DOWN");
-                result.put("message", "Rate limit exceeded (429). Please wait before trying again.");
+                result.put("message", "Rate limit exceeded (429). Please wait before trying again. Request URL: " + urlForLogging);
             } else if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
                 result.put("status", "DOWN");
-                result.put("message", "Authentication failed (API key invalid). Please check gemini.api.key.");
+                result.put("message", "Authentication failed (API key invalid). Please check gemini.api.key. Request URL: " + urlForLogging);
+            } else if (e.getStatusCode().value() == 404) {
+                result.put("status", "DOWN");
+                result.put("message", "API endpoint not found (404). The Gemini API may have changed. Full URL (API key masked): " + urlForLogging + ". Check if the API endpoint is correct.");
             } else {
                 result.put("status", "DOWN");
-                result.put("message", "HTTP error " + e.getStatusCode() + ": " + rawResponse);
+                result.put("message", "HTTP error " + e.getStatusCode() + ": " + rawResponse + ". Request URL: " + urlForLogging);
             }
         } catch (Exception e) {
             result.put("status", "DOWN");
-            result.put("message", "Gemini API is unavailable: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            result.put("message", "Gemini API is unavailable: " + e.getClass().getSimpleName() + " - " + e.getMessage() + ". Request URL: " + urlForLogging);
             result.put("rawResponse", "{\"error\": \"" + e.getClass().getSimpleName() + "\", \"message\": \"" + e.getMessage().replace("\"", "\\\"") + "\"}");
             result.put("httpStatus", "0");
+            result.put("errorType", e.getClass().getSimpleName());
         }
         return result;
     }
