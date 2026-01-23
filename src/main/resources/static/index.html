@@ -182,7 +182,7 @@
                     <option value="English">English</option>
                     <option value="Chinese">中文 (Chinese)</option>
                 </select>
-                <button class="btn btn-outline-light btn-sm" onclick="refreshCurrentTab()">Refresh</button>
+                <button id="refresh-button" class="btn btn-outline-light btn-sm">Refresh (30s)</button>
             </div>
         </div>
     </nav>
@@ -274,8 +274,8 @@
             const item = localStorage.getItem(key);
             if (item) {
                 const { clusters, timestamp } = JSON.parse(item);
-                // Cache for 5 minutes (300000 ms) to avoid stale data
-                if (Date.now() - timestamp < 300000) {
+                // Cache for 1 hour (3600000 ms) to reduce unnecessary analysis
+                if (Date.now() - timestamp < 3600000) {
                     return { clusters, timestamp };
                 }
             }
@@ -285,6 +285,27 @@
         function setCachedClusters(tab, lang, model, clusters) {
             const key = `clusters_${tab}_${lang}_${model}`;
             const item = JSON.stringify({ clusters, timestamp: Date.now() });
+            localStorage.setItem(key, item);
+        }
+
+        function getCachedArticleAnalysis(url, lang, model) {
+            const hash = btoa(url).replace(/[+/=]/g, '').substring(0, 16);
+            const key = `article_${hash}_${lang}_${model}`;
+            const item = localStorage.getItem(key);
+            if (item) {
+                const { analysis, timestamp } = JSON.parse(item);
+                // Cache for 1 hour (3600000 ms)
+                if (Date.now() - timestamp < 3600000) {
+                    return { analysis, timestamp };
+                }
+            }
+            return null;
+        }
+
+        function setCachedArticleAnalysis(url, lang, model, analysis) {
+            const hash = btoa(url).replace(/[+/=]/g, '').substring(0, 16);
+            const key = `article_${hash}_${lang}_${model}`;
+            const item = JSON.stringify({ analysis, timestamp: Date.now() });
             localStorage.setItem(key, item);
         }
 
@@ -441,7 +462,13 @@
                 const isBBC = tabName === 'bbc';
                 renderRawItems(container, rawItems, isBBC);
 
-                // Check cache if not forcing refresh
+                // For BBC tab, use per-article analysis with caching
+                if (isBBC) {
+                    await loadBBCArticlesWithCache(container, rawItems, lang, model, forceRefresh);
+                    return;
+                }
+
+                // For CNN tab, use the existing cluster-based approach with cache
                 if (!forceRefresh) {
                     const cached = getCachedClusters(tabName, lang, model);
                     if (cached) {
@@ -485,6 +512,94 @@
                 const loaders = container.querySelectorAll('.loading-label');
                 loaders.forEach(l => l.innerHTML = `<span class="text-danger">AI Analysis: Network error</span>`);
             }
+        }
+
+        async function loadBBCArticlesWithCache(container, rawItems, lang, model, forceRefresh) {
+            showStatusBar('bbc', `Analyzing ${rawItems.length} articles...`, true);
+            let analyzedCount = 0;
+            let cachedCount = 0;
+            
+            for (const item of rawItems) {
+                // Find the card for this article
+                const cardWrapper = Array.from(container.children).find(card => 
+                    card.dataset.normalizedLink === normalizeUrl(item.link)
+                );
+                if (!cardWrapper) continue;
+                
+                const aiBox = cardWrapper.querySelector('.ai-placeholder');
+                if (!aiBox) continue;
+                
+                // Check cache first
+                if (!forceRefresh) {
+                    const cached = getCachedArticleAnalysis(item.link, lang, model);
+                    if (cached) {
+                        updateCardWithAnalysis(cardWrapper, cached.analysis, aiBox);
+                        cachedCount++;
+                        continue;
+                    }
+                }
+                
+                // If not cached or forcing refresh, analyze
+                analyzedCount++;
+                try {
+                    const response = await fetch('/api/analyze/snippet', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title: item.title,
+                            snippet: item.summary,
+                            link: item.link,
+                            lang: lang,
+                            model: model
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        const cluster = await response.json();
+                        setCachedArticleAnalysis(item.link, lang, model, cluster);
+                        updateCardWithAnalysis(cardWrapper, cluster, aiBox);
+                    } else {
+                        aiBox.innerHTML = `<span class="text-danger">AI Analysis: Failed (${response.status})</span>`;
+                    }
+                } catch (error) {
+                    console.error('Error analyzing article:', error);
+                    aiBox.innerHTML = `<span class="text-danger">AI Analysis: Network error</span>`;
+                }
+                
+                // Add a small delay between requests to avoid rate limits
+                if (analyzedCount < rawItems.length) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+            
+            showStatusBar('bbc', `Analysis complete. ${cachedCount} cached, ${analyzedCount} new`, false);
+        }
+
+        function updateCardWithAnalysis(cardWrapper, cluster, aiBox) {
+            const rating = cluster.impact_rating || 'N/A';
+            let ratingClass = 'text-secondary';
+            if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
+            else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
+            const uniqueId = 'details-inline-' + Math.random().toString(36).substr(2, 9);
+            aiBox.className = 'mt-3 border-top border-secondary pt-3';
+            aiBox.style.background = 'transparent';
+            aiBox.style.border = 'none';
+            aiBox.innerHTML = `
+                <h6 class="text-warning small text-uppercase mb-1">AI Summary</h6>
+                <p class="text-white small">${cluster.summary}</p>
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-dark border border-secondary text-secondary">Impact: <span class="${ratingClass}">${rating}/10</span></span>
+                    <span class="text-secondary" style="font-size: 0.65rem">${cluster.modelUsed || ''}</span>
+                    <button class="btn btn-sm btn-link text-warning p-0 text-decoration-none" style="font-size: 0.8rem" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">Show Impacts ▼</button>
+                </div>
+                <div class="collapse" id="${uniqueId}">
+                    <div class="card card-body bg-dark border border-secondary p-2">
+                        <p class="mb-1 small"><strong class="text-info">Economic:</strong> ${cluster.economic_impact}</p>
+                        <p class="mb-1 small"><strong class="text-info">Global:</strong> ${cluster.global_impact}</p>
+                        <p class="mb-0 small"><strong class="text-info">Next:</strong> ${cluster.what_next}</p>
+                    </div>
+                </div>
+            `;
         }
 
         function loadBBCMerged(forceRefresh = false) { loadFeed('bbc', '/api/news', '/api/news/bbc/merged', forceRefresh); }
@@ -578,7 +693,59 @@
             tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) });
         }
 
-        window.onload = function() { loadModels(); loadBBCMerged(); };
+        // Refresh button countdown
+        let refreshCountdown = 0;
+        let refreshTimer = null;
+        
+        function updateRefreshButton() {
+            const button = document.getElementById('refresh-button');
+            if (refreshCountdown > 0) {
+                button.textContent = `Refresh (${refreshCountdown}s)`;
+                button.disabled = true;
+                button.classList.remove('btn-outline-light');
+                button.classList.add('btn-secondary');
+            } else {
+                button.textContent = 'Refresh';
+                button.disabled = false;
+                button.classList.remove('btn-secondary');
+                button.classList.add('btn-outline-light');
+                if (refreshTimer) {
+                    clearInterval(refreshTimer);
+                    refreshTimer = null;
+                }
+            }
+        }
+        
+        function startRefreshCountdown() {
+            refreshCountdown = 30;
+            updateRefreshButton();
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(() => {
+                refreshCountdown--;
+                updateRefreshButton();
+                if (refreshCountdown <= 0) {
+                    clearInterval(refreshTimer);
+                    refreshTimer = null;
+                }
+            }, 1000);
+        }
+        
+        // Override the refreshCurrentTab function
+        const originalRefreshCurrentTab = refreshCurrentTab;
+        refreshCurrentTab = function() {
+            if (refreshCountdown > 0) return;
+            startRefreshCountdown();
+            originalRefreshCurrentTab();
+        };
+        
+        // Set up event listener for refresh button
+        document.getElementById('refresh-button').addEventListener('click', refreshCurrentTab);
+        
+        window.onload = function() { 
+            loadModels(); 
+            loadBBCMerged(); 
+            updateRefreshButton(); // Initial button state
+        };
     </script>
     <footer class="text-center mt-5 mb-4 text-secondary small">NewsHub v1.7.2 | Model used badges & Enhanced Fallback Logic</footer>
 </body>
