@@ -37,6 +37,12 @@ The `application.properties` file is **Git-Ignored** for security.
 - **Location:** `src/main/resources/application.properties`
 - **Manual Setup Required:** When setting up a new server, this file must be created manually on the VPS.
 - **Current Strategy:** The API Key is hardcoded in the file on the VPS (Option B) to avoid environment variable complexity with `sudo`.
+- **Database Env Variables:** If using environment variables for the database, the format is:
+  ```bash
+  DB_URL=jdbc:mysql://localhost:3306/newshub
+  DB_USERNAME=your_username
+  DB_PASSWORD=your_password
+  ```
 
 ### 4. Key Fixes Implemented
 - **"Version 17 not supported":** Fixed by forcing `JAVA_HOME` to OpenJDK 21 and using Maven Wrapper.
