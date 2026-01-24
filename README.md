@@ -49,3 +49,6 @@ After changes, run:
 .\git-sync.bat
 ```
 This triggers the CI/CD pipeline which pulls code, compiles on the VPS, and restarts the server.
+
+---
+*Last Triggered Deployment: Sat Jan 24 2026*

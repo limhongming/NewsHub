@@ -14,8 +14,8 @@ spring.jpa.properties.hibernate.format_sql=true
 # Cache duration (6 hours in milliseconds)
 app.cache.duration=21600000
 
-# Gemini API Key
-gemini.api.key=${GEMINI_API_KEY}
-
 # Server port (80 for production)
 server.port=80
+
+# Gemini API Key
+gemini.api.key=${GEMINI_API_KEY}
