@@ -682,32 +682,7 @@
             return card;
         }
         
-        function createArticleCard(item, analysis, isAnalyzed) {
-            const rating = cluster.impact_rating || 'N/A';
-            let ratingClass = 'text-secondary';
-            if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
-            else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
-            const uniqueId = 'details-inline-' + Math.random().toString(36).substr(2, 9);
-            aiBox.className = 'mt-3 border-top border-secondary pt-3';
-            aiBox.style.background = 'transparent';
-            aiBox.style.border = 'none';
-            aiBox.innerHTML = `
-                <h6 class="text-warning small text-uppercase mb-1">AI Summary</h6>
-                <p class="text-white small">${cluster.summary}</p>
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="badge bg-dark border border-secondary text-secondary">Impact: <span class="${ratingClass}">${rating}/10</span></span>
-                    <span class="text-secondary" style="font-size: 0.65rem">${cluster.modelUsed || ''}</span>
-                    <button class="btn btn-sm btn-link text-warning p-0 text-decoration-none" style="font-size: 0.8rem" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">Show Impacts ▼</button>
-                </div>
-                <div class="collapse" id="${uniqueId}">
-                    <div class="card card-body bg-dark border border-secondary p-2">
-                        <p class="mb-1 small"><strong class="text-info">Economic:</strong> ${cluster.economic_impact}</p>
-                        <p class="mb-1 small"><strong class="text-info">Global:</strong> ${cluster.global_impact}</p>
-                        <p class="mb-0 small"><strong class="text-info">Next:</strong> ${cluster.what_next}</p>
-                    </div>
-                </div>
-            `;
-        }
+
 
         function loadBBCSeparated(forceRefresh = false) {
             // This function will be implemented below
