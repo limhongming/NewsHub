@@ -143,7 +143,7 @@ public class NewsSystemService {
     private static final int MAX_RETRIES = 1; // Only 1 retry to avoid hitting rate limits
     private static final long INITIAL_RETRY_DELAY_MS = 8000; // Increased to 8 seconds
     private static final long MAX_RETRY_DELAY_MS = 30000; // Increased to 30 seconds
-    private static final long MIN_REQUEST_INTERVAL_MS = 6000; // 6 seconds between requests (10 RPM)
+    private static final long MIN_REQUEST_INTERVAL_MS = 4000; // 4 seconds between requests (15 RPM)
     private volatile long lastRequestTime = 0;
     
     // API usage tracking
