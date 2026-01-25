@@ -183,9 +183,31 @@
                     <option value="Chinese">中文 (Chinese)</option>
                 </select>
                 <button id="refresh-button" class="btn btn-outline-light btn-sm">Refresh (30s)</button>
+                <button class="btn btn-outline-info btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#importModal">Import</button>
             </div>
         </div>
     </nav>
+
+    <!-- Import Modal -->
+    <div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Manual Import</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">Paste BBC article URLs (one per line) to analyze and add them to the list.</p>
+                    <textarea id="import-urls" class="form-control bg-dark text-light" rows="10" placeholder="https://www.bbc.com/news/article..."></textarea>
+                    <div id="import-status" class="mt-2 small"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="runImport()">Process Import</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="container">
         
@@ -800,6 +822,48 @@
         function initTooltips() {
             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
             tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) });
+        }
+
+        async function runImport() {
+            const textarea = document.getElementById('import-urls');
+            const statusDiv = document.getElementById('import-status');
+            const raw = textarea.value;
+            if (!raw.trim()) return;
+            
+            const urls = raw.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+            if (urls.length === 0) {
+                statusDiv.innerHTML = '<span class="text-danger">No valid URLs found.</span>';
+                return;
+            }
+
+            statusDiv.innerHTML = '<span class="text-warning">Processing ' + urls.length + ' articles... This may take a moment.</span>';
+            const btn = document.querySelector('#importModal .btn-primary');
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/news/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ urls: urls })
+                });
+                
+                if (response.ok) {
+                    const msg = await response.text();
+                    statusDiv.innerHTML = '<span class="text-success">' + msg + '</span>';
+                    setTimeout(() => {
+                        textarea.value = '';
+                        btn.disabled = false;
+                        bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
+                        refreshCurrentTab();
+                    }, 2000);
+                } else {
+                    statusDiv.innerHTML = '<span class="text-danger">Import failed: ' + response.statusText + '</span>';
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                statusDiv.innerHTML = '<span class="text-danger">Error: ' + e.message + '</span>';
+                btn.disabled = false;
+            }
         }
 
         // Refresh button countdown

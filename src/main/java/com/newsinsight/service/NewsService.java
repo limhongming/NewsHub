@@ -95,6 +95,62 @@ public class NewsService {
         return newsItems;
     }
 
+    public NewsItem scrapeNewsItem(String url) {
+        try {
+            System.out.println("DEBUG: Scrape & Build NewsItem for: " + url);
+            // Reuse connection logic similar to scrapeArticleContent but we need the Document
+            // to get the Title as well.
+            
+             // Multiple User-Agent strings to rotate
+            String[] userAgents = {
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            };
+            String userAgent = userAgents[(int) (System.currentTimeMillis() % userAgents.length)];
+
+            Document doc = Jsoup.connect(url)
+                    .userAgent(userAgent)
+                    .timeout(15000)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+                    .get();
+
+            String title = doc.title();
+            // Try to find a better title if possible
+            Elements h1 = doc.select("h1");
+            if (!h1.isEmpty()) {
+                title = h1.first().text();
+            }
+
+            // Clean up for content extraction
+            doc.select("script, style, nav, footer, .advert, .sidebar, .related, .comments").remove();
+            
+            // Extract content (reuse extraction logic basics)
+            String content = extractWithSelectors(doc, new String[]{
+                "article p", "article div.article-body p", ".article-content p", 
+                ".story-body p", ".post-content p", ".entry-content p", ".text p",
+                "main p", "#content p", ".body p"
+            });
+
+            if (content == null || content.isEmpty()) {
+                content = doc.body().text();
+            }
+            
+            // Truncate if too long to fit in "summary" for NewsItem, but keep enough for analysis
+            // The processAndClusterNews uses this field for analysis.
+            if (content != null && content.length() > 5000) {
+                content = content.substring(0, 5000) + "...";
+            }
+            
+            if (content == null) content = "Content could not be scraped.";
+
+            return new NewsItem(title, url, new java.util.Date(), content);
+
+        } catch (Exception e) {
+            System.err.println("Error scraping NewsItem (" + url + "): " + e.getMessage());
+            return new NewsItem("Error Fetching: " + url, url, new java.util.Date(), "Failed to scrape: " + e.getMessage());
+        }
+    }
+
     public String scrapeArticleContent(String url) throws Exception {
         System.out.println("DEBUG: Attempting to scrape article content from: " + url);
         

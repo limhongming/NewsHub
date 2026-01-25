@@ -155,6 +155,54 @@ public class NewsController {
         }
     }
 
+    @PostMapping("/news/import")
+    public ResponseEntity<?> manualImport(@RequestBody Map<String, List<String>> payload) {
+        List<String> urls = payload.get("urls");
+        if (urls == null || urls.isEmpty()) {
+            return ResponseEntity.badRequest().body("No URLs provided");
+        }
+
+        System.out.println("IMPORT: Received " + urls.size() + " URLs for manual import.");
+        
+        // 1. Scrape Items
+        List<NewsItem> items = new java.util.ArrayList<>();
+        for (String url : urls) {
+            items.add(newsService.scrapeNewsItem(url));
+        }
+
+        // 2. Analyze (using existing logic)
+        // This will process them (sequentially or batch depending on logic) and return clusters
+        List<MergedNewsCluster> newClusters = newsSystemService.processAndClusterNews(
+            items, "English", false, "gemini-2.5-flash-lite"
+        );
+        
+        // 3. Update Cache
+        // We append these to the BBC cache for now, or we could have a "Manual" tab. 
+        // User requested "Manual Import" to backfill, likely for BBC/General.
+        // Let's add to BBC cache as that's the primary view.
+        List<MergedNewsCluster> currentCache = newsCacheService.getCachedNews("bbc", "English", "gemini-2.5-flash-lite");
+        if (currentCache == null) currentCache = new java.util.ArrayList<>();
+        
+        List<MergedNewsCluster> validNew = new java.util.ArrayList<>();
+        if (newClusters != null) {
+            for (MergedNewsCluster c : newClusters) {
+                if (!c.topic().contains("Error")) {
+                    validNew.add(c);
+                }
+            }
+        }
+        
+        if (!validNew.isEmpty()) {
+            // Add to top
+            List<MergedNewsCluster> merged = new java.util.ArrayList<>(validNew);
+            merged.addAll(currentCache);
+            newsCacheService.cacheNews("bbc", "English", "gemini-2.5-flash-lite", merged);
+            return ResponseEntity.ok("Successfully imported " + validNew.size() + " articles.");
+        } else {
+            return ResponseEntity.ok("No valid articles could be imported (Analysis failed or empty).");
+        }
+    }
+
     @GetMapping("/api/usage")
     public Map<String, Object> getApiUsageStats() {
         return newsSystemService.getApiUsageStats();
