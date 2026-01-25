@@ -530,9 +530,18 @@
             const summarizedContainer = document.getElementById('bbc-summarized-container');
             
             showStatusBar('bbc-new', 'Fetching BBC headlines...', true);
-            showStatusBar('bbc-summarized', 'Loading summarized articles...', false);
+            showStatusBar('bbc-summarized', 'Loading cached summaries...', true);
             
             try {
+                // 1. Fetch Server-Side Summarized/Analyzed News (Background Processed)
+                // The backend scheduler now maintains this list in the database.
+                const summarizedResponse = await fetch(`/api/news/bbc/merged?lang=${lang}&model=${model}`);
+                let summarizedClusters = [];
+                if (summarizedResponse.ok) {
+                    summarizedClusters = await summarizedResponse.json();
+                }
+
+                // 2. Fetch Raw News
                 const rawResponse = await fetch('/api/news');
                 const rawItems = await rawResponse.json();
                 
@@ -540,42 +549,63 @@
                 newContainer.innerHTML = '';
                 summarizedContainer.innerHTML = '';
                 
-                if (!rawItems || rawItems.length === 0) {
-                    newContainer.innerHTML = '<div class="col-12 text-center text-muted">No BBC news found.</div>';
-                    summarizedContainer.innerHTML = '<div class="col-12 text-center text-muted">No summarized articles.</div>';
-                    return;
+                // Helper: Map Link -> NewsItem for date/original title lookup
+                const itemMap = new Map();
+                if (rawItems && rawItems.length > 0) {
+                    rawItems.forEach(i => itemMap.set(normalizeUrl(i.link), i));
                 }
                 
-                let analyzedCount = 0;
-                let unanalyzedCount = 0;
-                
-                // Separate articles based on cache
-                for (const item of rawItems) {
-                    const cached = getCachedArticleAnalysis(item.link, lang, model);
-                    
-                    if (cached && !forceRefresh) {
-                        // Article has cached analysis - put in summarized container
-                        const card = createArticleCard(item, cached.analysis, true);
-                        summarizedContainer.appendChild(card);
-                        analyzedCount++;
-                    } else {
-                        // Article has no cache or force refresh - put in new container
-                        const card = createArticleCard(item, null, false);
-                        newContainer.appendChild(card);
-                        unanalyzedCount++;
-                    }
+                // 3. Render Summarized
+                if (summarizedClusters && summarizedClusters.length > 0) {
+                     summarizedClusters.forEach(cluster => {
+                         // Skip error clusters if you want, or show them
+                         if (cluster.topic && cluster.topic.includes('Error')) return;
+
+                         // Find matching raw item to get date/title if possible
+                         let originalItem = null;
+                         if (cluster.related_links && cluster.related_links.length > 0) {
+                             originalItem = itemMap.get(normalizeUrl(cluster.related_links[0]));
+                         }
+                         
+                         // If we can't find the original item (maybe it fell off RSS), we construct a dummy one
+                         const item = originalItem || {
+                             title: cluster.topic,
+                             link: cluster.related_links && cluster.related_links.length > 0 ? cluster.related_links[0] : '#',
+                             published: new Date(), // We don't have date in cluster
+                             summary: cluster.summary
+                         };
+                         
+                         // Create card
+                         const card = createArticleCard(item, cluster, true);
+                         summarizedContainer.appendChild(card);
+                     });
+                     
+                     showStatusBar('bbc-summarized', `${summarizedClusters.length} summarized articles loaded.`, false);
+                } else {
+                     summarizedContainer.innerHTML = '<div class="col-12 text-center text-muted">No summarized articles found. Background analysis pending...</div>';
+                     showStatusBar('bbc-summarized', 'No summaries available yet.', false);
+                }
+
+                // 4. Render New (Unsummarized)
+                // Filter rawItems that are NOT in summarizedClusters
+                const summarizedLinks = new Set();
+                if (summarizedClusters) {
+                    summarizedClusters.forEach(c => {
+                        if (c.related_links) c.related_links.forEach(l => summarizedLinks.add(normalizeUrl(l)));
+                    });
                 }
                 
-                // Show status
-                showStatusBar('bbc-new', `${unanalyzedCount} new articles to analyze.`, false);
-                showStatusBar('bbc-summarized', `${analyzedCount} articles already summarized.`, false);
+                const newItems = (rawItems || []).filter(item => !summarizedLinks.has(normalizeUrl(item.link)));
                 
-                // If there are unanalyzed articles, analyze them
-                if (unanalyzedCount > 0) {
-                    await analyzeUncachedArticles(newContainer, rawItems.filter(item => {
-                        const cached = getCachedArticleAnalysis(item.link, lang, model);
-                        return !cached || forceRefresh;
-                    }), lang, model, forceRefresh);
+                if (newItems.length > 0) {
+                     newItems.forEach(item => {
+                         const card = createArticleCard(item, null, false);
+                         newContainer.appendChild(card);
+                     });
+                     showStatusBar('bbc-new', `${newItems.length} new articles available.`, false);
+                } else {
+                     newContainer.innerHTML = '<div class="col-12 text-center text-muted">All current news has been summarized.</div>';
+                     showStatusBar('bbc-new', 'Up to date.', false);
                 }
                 
             } catch (error) {
@@ -652,82 +682,7 @@
             return card;
         }
         
-        async function analyzeUncachedArticles(container, items, lang, model, forceRefresh) {
-            showStatusBar('bbc-new', `Analyzing ${items.length} articles...`, true);
-            let analyzedCount = 0;
-            
-            for (const item of items) {
-                try {
-                    const response = await fetch('/api/analyze/snippet', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            title: item.title,
-                            snippet: item.summary,
-                            link: item.link,
-                            lang: lang,
-                            model: model
-                        })
-                    });
-                    
-                    if (response.ok) {
-                        const cluster = await response.json();
-                        setCachedArticleAnalysis(item.link, lang, model, cluster);
-                        analyzedCount++;
-                        
-                        // Move card from new container to summarized container
-                        moveCardToSummarized(item.link, cluster);
-                    } else {
-                        const errorText = await response.text();
-                        console.error('Analysis failed:', errorText);
-                    }
-                } catch (error) {
-                    console.error('Error analyzing article:', error);
-                }
-                
-                // Add delay between requests to avoid rate limits
-                if (analyzedCount < items.length) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-            }
-            
-            showStatusBar('bbc-new', `Analysis complete. ${analyzedCount} articles analyzed.`, false);
-        }
-        
-        function moveCardToSummarized(articleUrl, analysis) {
-            const newContainer = document.getElementById('bbc-new-container');
-            const summarizedContainer = document.getElementById('bbc-summarized-container');
-            const normalizedUrl = normalizeUrl(articleUrl);
-            
-            // Find card in new container
-            const cardToMove = Array.from(newContainer.children).find(card => 
-                card.dataset.normalizedLink === normalizedUrl
-            );
-            
-            if (cardToMove) {
-                // Remove from new container
-                newContainer.removeChild(cardToMove);
-                
-                // Create new analyzed card
-                const item = {
-                    title: cardToMove.querySelector('.card-title').textContent,
-                    published: cardToMove.querySelector('.card-subtitle').textContent,
-                    summary: cardToMove.querySelector('.card-text').textContent,
-                    link: cardToMove.dataset.originalUrl
-                };
-                
-                const newCard = createArticleCard(item, analysis, true);
-                summarizedContainer.appendChild(newCard);
-                
-                // Update status counts
-                const unanalyzedCount = newContainer.children.length;
-                const analyzedCount = summarizedContainer.children.length;
-                showStatusBar('bbc-new', `${unanalyzedCount} new articles to analyze.`, false);
-                showStatusBar('bbc-summarized', `${analyzedCount} articles already summarized.`, false);
-            }
-        }
-
-        function updateCardWithAnalysis(cardWrapper, cluster, aiBox) {
+        function createArticleCard(item, analysis, isAnalyzed) {
             const rating = cluster.impact_rating || 'N/A';
             let ratingClass = 'text-secondary';
             if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';

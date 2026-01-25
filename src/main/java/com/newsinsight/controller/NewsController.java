@@ -70,17 +70,15 @@ public class NewsController {
     }
 
     @GetMapping("/news/bbc/merged")
-    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-2.5-flash") String model) {
+    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-2.5-flash-lite") String model) {
+        // Return cached news immediately. 
+        // Background updates are handled by NewsSchedulerService.
         List<MergedNewsCluster> cached = newsCacheService.getCachedNews("bbc", lang, model);
         if (cached != null) return cached;
-
-        List<NewsItem> bbcNews = newsService.getTopNews();
-        List<MergedNewsCluster> result = newsSystemService.processAndClusterNews(bbcNews, lang, false, model);
-
-        if (result != null && !result.isEmpty() && !result.get(0).topic().contains("Error")) {
-            newsCacheService.cacheNews("bbc", lang, model, result);
-        }
-        return result;
+        
+        // If nothing in cache yet (e.g. first startup), return empty list or consider triggering an async update.
+        // For now, we return empty to avoid blocking the UI.
+        return List.of();
     }
 
     @GetMapping("/news/cnn")
