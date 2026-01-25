@@ -273,6 +273,8 @@
     <script>
         let currentTab = 'bbc-new';
 
+        let bbcPendingCount = 0;
+
         function normalizeUrl(url) {
             if (!url) return '';
             return url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
@@ -481,14 +483,26 @@
                 if (!forceRefresh) {
                     const cached = getCachedClusters(tabName, lang, model);
                     if (cached) {
+                        // Check if we should warn about BBC priority
+                        if (!isBBC && bbcPendingCount > 0) {
+                            showStatusBar(tabName, `<strong>Notice:</strong> ${bbcPendingCount} BBC articles are currently being analyzed. CNN analysis is paused until BBC is complete.`, false);
+                        } else {
+                            showStatusBar(tabName, `Using cached analysis (${new Date(cached.timestamp).toLocaleTimeString()})`, false);
+                        }
                         updateCardsWithClusters(container, cached.clusters, isBBC);
-                        showStatusBar(tabName, `Using cached analysis (${new Date(cached.timestamp).toLocaleTimeString()})`, false);
                         return;
                     }
                 }
                 
                 // Try to get AI analysis (cached or fresh)
                 showStatusBar(tabName, `Fetching AI analysis...`, true);
+                
+                // Warn about BBC priority if getting fresh data
+                if (!isBBC && bbcPendingCount > 0) {
+                    showStatusBar(tabName, `<strong>Waiting:</strong> Prioritizing ${bbcPendingCount} pending BBC articles. CNN analysis will resume automatically when finished.`, true);
+                    // We still try to fetch in case there is cached data on server
+                }
+                
                 const aiResponse = await fetch(`${aiEndpoint}?lang=${lang}&model=${model}`);
                 if (aiResponse.ok) {
                     const clusters = await aiResponse.json();
@@ -602,9 +616,11 @@
                          const card = createArticleCard(item, null, false);
                          newContainer.appendChild(card);
                      });
+                     bbcPendingCount = newItems.length;
                      showStatusBar('bbc-new', `${newItems.length} new articles available.`, false);
                 } else {
                      newContainer.innerHTML = '<div class="col-12 text-center text-muted">All current news has been summarized.</div>';
+                     bbcPendingCount = 0;
                      showStatusBar('bbc-new', 'Up to date.', false);
                 }
                 

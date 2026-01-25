@@ -61,6 +61,17 @@ public class NewsService {
                 if (entries != null) {
                     for (int i = 0; i < Math.min(entries.size(), limit); i++) {
                         SyndEntry entry = entries.get(i);
+                        
+                        // Filter for 2026 only
+                        java.util.Date pubDate = entry.getPublishedDate();
+                        if (pubDate != null) {
+                            java.util.Calendar cal = java.util.Calendar.getInstance();
+                            cal.setTime(pubDate);
+                            if (cal.get(java.util.Calendar.YEAR) < 2026) {
+                                continue; // Skip older articles
+                            }
+                        }
+                        
                         String description = entry.getDescription() != null ? entry.getDescription().getValue() : "";
                         newsItems.add(new NewsItem(
                                 entry.getTitle(),
