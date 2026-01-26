@@ -586,7 +586,9 @@ public class NewsSystemService {
                     trackApiCall(model);
                     
                     System.out.println("DEBUG: Attempting API call with model: " + model);
-                    String url = String.format(API_URL_TEMPLATE, model, apiKey);
+                    String url = String.format(API_URL_TEMPLATE, model.trim(), apiKey);
+                    System.out.println("DEBUG: FINAL API URL: " + url.replace(apiKey, "API_KEY_HIDDEN")); // Safe logging
+                    
                     ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
                     
                     if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
