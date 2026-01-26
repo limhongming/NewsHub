@@ -69,9 +69,9 @@ public class NewsSystemService {
     
     // Official model patterns
     private static final List<String> OFFICIAL_MODEL_PATTERNS = List.of(
-        "gemini-\d+\.\d+-flash(-\d+)?",           
-        "gemini-\d+\.\d+-pro(-\d+)?",             
-        "gemini-\d+\.\d+-pro-vision(-\d+)?"
+        "gemini-[0-9]+[.][0-9]+-flash(-[0-9]+)?",
+        "gemini-[0-9]+[.][0-9]+-pro(-[0-9]+)?",
+        "gemini-[0-9]+[.][0-9]+-pro-vision(-[0-9]+)?"
     );
 
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
@@ -248,7 +248,7 @@ public class NewsSystemService {
         if (modelName.contains("1.0")) return "1.0";
         
         // Try to extract version using regex pattern for future versions
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("gemini-(\\d+\\.\\d+)");
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("gemini-([0-9]+[.][0-9]+)");
         java.util.regex.Matcher matcher = pattern.matcher(modelName);
         if (matcher.find()) {
             return matcher.group(1);
