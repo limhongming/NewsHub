@@ -24,7 +24,7 @@ public class NewsCacheService {
     private final NewsCacheClusterRepository clusterRepository;
     private final ArticleCacheRepository articleRepository;
     
-    @Value("${app.cache.duration:21600000}") // 6 hours default
+    @Value("${app.cache.duration:2592000000}") // 30 days default
     private long cacheDurationMs;
 
     public NewsCacheService(ObjectMapper objectMapper, 
