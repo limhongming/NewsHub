@@ -56,7 +56,7 @@ public class NewsController {
     }
 
     @GetMapping("/news/merged")
-    public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-2.5-flash-lite") String model) {
+    public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-1.5-flash") String model) {
         List<MergedNewsCluster> cached = newsCacheService.getCachedNews("cnn", lang, model);
         if (cached != null) return cached;
 
@@ -65,7 +65,7 @@ public class NewsController {
     }
 
     @GetMapping("/news/bbc/merged")
-    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-2.5-flash-lite") String model) {
+    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-1.5-flash") String model) {
         // Return cached news immediately. 
         // Background updates are handled by NewsSchedulerService.
         List<MergedNewsCluster> cached = newsCacheService.getCachedNews("bbc", lang, model);
@@ -173,14 +173,14 @@ public class NewsController {
         // 2. Analyze (using existing logic)
         // This will process them (sequentially or batch depending on logic) and return clusters
         List<MergedNewsCluster> newClusters = newsSystemService.processAndClusterNews(
-            items, "English", false, "gemini-2.5-flash-lite"
+            items, "English", false, "gemini-1.5-flash"
         );
         
         // 3. Update Cache
         // We append these to the BBC cache for now, or we could have a "Manual" tab. 
         // User requested "Manual Import" to backfill, likely for BBC/General.
         // Let's add to BBC cache as that's the primary view.
-        List<MergedNewsCluster> currentCache = newsCacheService.getCachedNews("bbc", "English", "gemini-2.5-flash-lite");
+        List<MergedNewsCluster> currentCache = newsCacheService.getCachedNews("bbc", "English", "gemini-1.5-flash");
         if (currentCache == null) currentCache = new java.util.ArrayList<>();
         
         List<MergedNewsCluster> validNew = new java.util.ArrayList<>();
@@ -222,7 +222,7 @@ public class NewsController {
             // Add to top
             List<MergedNewsCluster> merged = new java.util.ArrayList<>(validNew);
             merged.addAll(currentCache);
-            newsCacheService.cacheNews("bbc", "English", "gemini-2.5-flash-lite", merged);
+            newsCacheService.cacheNews("bbc", "English", "gemini-1.5-flash", merged);
             return ResponseEntity.ok("Successfully imported " + validNew.size() + " articles.");
         } else {
             return ResponseEntity.ok("No valid articles could be imported (Analysis failed or empty).");

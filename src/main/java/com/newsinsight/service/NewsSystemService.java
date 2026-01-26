@@ -36,33 +36,15 @@ public class NewsSystemService {
     private String apiKey;
 
     // Official Gemini models - production-ready, stable models only
-    // Ordered by cost/performance: free/cheaper models first, then premium
-    // Version numbers are explicitly included in model names
-    // Includes current models and forward-compatible for future versions (3.0+)
+    // Ordered by cost/performance
     private static final List<String> FALLBACK_MODELS = List.of(
-        // Free tier models (highest rate limits, lowest cost)
-        "gemini-2.0-flash-lite",      // Version 2.0 - Official free tier
-        "gemini-2.0-flash-lite-001",  // Version 2.0.001 - Alternative free tier variant
-        "gemini-2.5-flash-lite",      // Version 2.5 - Latest free tier with improved capabilities
-        
-        // Standard tier models (good balance of cost and performance)
-        "gemini-2.0-flash",           // Version 2.0 - Official standard tier
-        "gemini-2.0-flash-001",       // Version 2.0.001 - Alternative standard variant
-        "gemini-2.5-flash",           // Version 2.5 - Latest premium with best performance
-        
-        // Pro models (higher cost, better for complex tasks)
-        "gemini-2.0-pro",             // Version 2.0 - Pro version for complex reasoning
-        "gemini-1.5-pro",             // Version 1.5 - Legacy pro model (if still available)
-        "gemini-1.5-flash",           // Version 1.5 - Flash model from previous generation
-        
-        // Future/experimental models (when available)
-        "gemini-3.0-flash-lite",      // Version 3.0 - Future free tier
-        "gemini-3.0-flash",           // Version 3.0 - Future standard tier
-        "gemini-3.0-pro"              // Version 3.0 - Future pro tier
+        // Stable, high-performance models (Free Tier Friendly)
+        "gemini-1.5-flash",           // Current standard for speed/cost
+        "gemini-1.5-pro",             // High intelligence model
+        "gemini-1.0-pro"              // Legacy stable model
     );
     
     // Model cost/priority mapping (lower number = higher priority for cost savings)
-    // Updated to include all official models with version clarity
     private static final Map<String, Integer> MODEL_PRIORITY = createModelPriorityMap();
     
     // Model version mapping for display purposes
@@ -70,44 +52,25 @@ public class NewsSystemService {
     
     private static Map<String, Integer> createModelPriorityMap() {
         Map<String, Integer> map = new HashMap<>();
-        map.put("gemini-2.0-flash-lite", 1);      // v2.0
-        map.put("gemini-2.0-flash-lite-001", 2);  // v2.0.001
-        map.put("gemini-2.5-flash-lite", 3);      // v2.5
-        map.put("gemini-2.0-flash", 4);           // v2.0
-        map.put("gemini-2.0-flash-001", 5);       // v2.0.001
-        map.put("gemini-2.5-flash", 6);           // v2.5
-        map.put("gemini-2.0-pro", 7);             // v2.0
-        map.put("gemini-1.5-pro", 8);             // v1.5
-        map.put("gemini-1.5-flash", 9);           // v1.5
-        map.put("gemini-3.0-flash-lite", 10);     // v3.0 (future)
-        map.put("gemini-3.0-flash", 11);          // v3.0 (future)
-        map.put("gemini-3.0-pro", 12);            // v3.0 (future)
+        map.put("gemini-1.5-flash", 1);
+        map.put("gemini-1.5-pro", 2);
+        map.put("gemini-1.0-pro", 3);
         return Collections.unmodifiableMap(map);
     }
     
     private static Map<String, String> createModelVersionsMap() {
         Map<String, String> map = new HashMap<>();
-        map.put("gemini-2.0-flash-lite", "2.0");
-        map.put("gemini-2.0-flash-lite-001", "2.0.001");
-        map.put("gemini-2.5-flash-lite", "2.5");
-        map.put("gemini-2.0-flash", "2.0");
-        map.put("gemini-2.0-flash-001", "2.0.001");
-        map.put("gemini-2.5-flash", "2.5");
-        map.put("gemini-2.0-pro", "2.0");
-        map.put("gemini-1.5-pro", "1.5");
         map.put("gemini-1.5-flash", "1.5");
-        map.put("gemini-3.0-flash-lite", "3.0");
-        map.put("gemini-3.0-flash", "3.0");
-        map.put("gemini-3.0-pro", "3.0");
+        map.put("gemini-1.5-pro", "1.5");
+        map.put("gemini-1.0-pro", "1.0");
         return Collections.unmodifiableMap(map);
     }
     
-    // Official model patterns - used to filter experimental/preview models
+    // Official model patterns
     private static final List<String> OFFICIAL_MODEL_PATTERNS = List.of(
-        "gemini-\\d+\\.\\d+-flash-lite(-\\d+)?",      // Flash Lite variants
-        "gemini-\\d+\\.\\d+-flash(-\\d+)?",           // Flash variants  
-        "gemini-\\d+\\.\\d+-pro(-\\d+)?",             // Pro variants
-        "gemini-\\d+\\.\\d+-pro-vision(-\\d+)?"       // Pro Vision variants
+        "gemini-\\d+\\.\\d+-flash(-\\d+)?",           
+        "gemini-\\d+\\.\\d+-pro(-\\d+)?",             
+        "gemini-\\d+\\.\\d+-pro-vision(-\\d+)?"
     );
 
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
@@ -143,7 +106,7 @@ public class NewsSystemService {
     private static final int MAX_RETRIES = 1; // Only 1 retry to avoid hitting rate limits
     private static final long INITIAL_RETRY_DELAY_MS = 8000; // Increased to 8 seconds
     private static final long MAX_RETRY_DELAY_MS = 30000; // Increased to 30 seconds
-    private static final long MIN_REQUEST_INTERVAL_MS = 4000; // 4 seconds between requests (15 RPM)
+    private static final long MIN_REQUEST_INTERVAL_MS = 5000; // 5 seconds between requests (12 RPM) - Safer buffer
     private volatile long lastRequestTime = 0;
     
     // API usage tracking
