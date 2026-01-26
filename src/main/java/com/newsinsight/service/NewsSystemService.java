@@ -40,7 +40,6 @@ public class NewsSystemService {
     private static final List<String> FALLBACK_MODELS = List.of(
         // Stable, high-performance models (Free Tier Friendly)
         "gemini-1.5-flash",           // Current standard for speed/cost
-        "gemini-2.0-flash",           // New generation standard
         "gemini-1.5-pro",             // High intelligence model
         "gemini-1.0-pro"              // Legacy stable model
     );
@@ -54,16 +53,14 @@ public class NewsSystemService {
     private static Map<String, Integer> createModelPriorityMap() {
         Map<String, Integer> map = new HashMap<>();
         map.put("gemini-1.5-flash", 1);
-        map.put("gemini-2.0-flash", 2);
-        map.put("gemini-1.5-pro", 3);
-        map.put("gemini-1.0-pro", 4);
+        map.put("gemini-1.5-pro", 2);
+        map.put("gemini-1.0-pro", 3);
         return Collections.unmodifiableMap(map);
     }
     
     private static Map<String, String> createModelVersionsMap() {
         Map<String, String> map = new HashMap<>();
         map.put("gemini-1.5-flash", "1.5");
-        map.put("gemini-2.0-flash", "2.0");
         map.put("gemini-1.5-pro", "1.5");
         map.put("gemini-1.0-pro", "1.0");
         return Collections.unmodifiableMap(map);
