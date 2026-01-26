@@ -67,11 +67,11 @@ public class NewsSystemService {
         return Collections.unmodifiableMap(map);
     }
     
-    // Official model patterns - SIMPLIFIED REGEX TO AVOID ESCAPE ISSUES
+    // Official model patterns
     private static final List<String> OFFICIAL_MODEL_PATTERNS = List.of(
-        "gemini-[0-9.]+-flash(-[0-9]+)?",
-        "gemini-[0-9.]+-pro(-[0-9]+)?",
-        "gemini-[0-9.]+-pro-vision(-[0-9]+)?"
+        "gemini-\d+\.\d+-flash(-\d+)?",           
+        "gemini-\d+\.\d+-pro(-\d+)?",             
+        "gemini-\d+\.\d+-pro-vision(-\d+)?"
     );
 
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
@@ -204,7 +204,7 @@ public class NewsSystemService {
             }
         } catch (Exception e) { 
             e.printStackTrace(); 
-        } 
+        }
         
         // Fallback: return our predefined official models
         List<GeminiModel> fallbackModels = new ArrayList<>();
@@ -586,7 +586,7 @@ public class NewsSystemService {
                     String urlStr = String.format(API_URL_TEMPLATE, model.trim(), apiKey);
                     System.out.println("DEBUG: FINAL API URL: " + urlStr.replace(apiKey, "API_KEY_HIDDEN"));
                     
-                    // USE URI OBJECT TO PREVENT DOUBLE-ENCODING OF THE COLON (:)
+                    // USE URI OBJECT TO PREVENT DOUBLE-ENCODING OF THE COLON (:) 
                     URI uri = URI.create(urlStr);
                     
                     ResponseEntity<Map> response = restTemplate.postForEntity(uri, entity, Map.class);
