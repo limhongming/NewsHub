@@ -68,8 +68,12 @@ public class NewsService {
                             java.util.Calendar cal = java.util.Calendar.getInstance();
                             cal.setTime(pubDate);
                             if (cal.get(java.util.Calendar.YEAR) < 2026) {
+                                System.out.println("DEBUG: Skipped older article (" + cal.get(java.util.Calendar.YEAR) + "): " + entry.getTitle());
                                 continue; // Skip older articles
                             }
+                        } else {
+                             System.out.println("DEBUG: Skipped article with null date: " + entry.getTitle());
+                             continue;
                         }
                         
                         String description = entry.getDescription() != null ? entry.getDescription().getValue() : "";
