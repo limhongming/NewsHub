@@ -598,7 +598,11 @@ public class NewsSystemService {
                             markModelFailure(model);
                             continue; // Try next model
                         }
-                        System.out.println("DEBUG: SUCCESS! Called Gemini API with model: " + model);
+                        
+                        // Debug log to see exactly what the AI returned
+                        String preview = extracted.length() > 500 ? extracted.substring(0, 500) + "..." : extracted;
+                        System.out.println("DEBUG: SUCCESS! Model " + model + " returned: " + preview);
+                        
                         logApiUsage(model, true);
                         return new ApiResult(extracted, model);
                     } else {
@@ -821,20 +825,56 @@ public class NewsSystemService {
         return result;
     }
 
+    private AnalysisResponse.AnalysisData parseJsonFromAI(String rawText) {
+        try {
+            String jsonText = cleanJsonText(rawText);
+            return objectMapper.readValue(jsonText, AnalysisResponse.AnalysisData.class);
+        } catch (Exception e) { 
+            System.err.println("ERROR: JSON Parsing failed for text: " + rawText);
+            return new AnalysisResponse.AnalysisData("Failed to parse response: " + e.getMessage()); 
+        }
+    }
+    
     private List<MergedNewsCluster> parseClusterJsonFromAI(String rawText) {
         try {
-            String jsonText = rawText.replace("```json", "").replace("```", "").trim();
+            String jsonText = cleanJsonText(rawText);
             return objectMapper.readValue(jsonText, new TypeReference<List<MergedNewsCluster>>(){});
         } catch (Exception e) {
-            return List.of(new MergedNewsCluster("Analysis Error", "Failed to parse JSON.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "ParseError"));
+            System.err.println("ERROR: JSON Parsing failed for cluster text: " + rawText);
+            return List.of(new MergedNewsCluster("Analysis Error", "Failed to parse JSON: " + e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "ParseError"));
         }
     }
 
-    private AnalysisResponse.AnalysisData parseJsonFromAI(String rawText) {
-        try {
-            String jsonText = rawText.replace("```json", "").replace("```", "").trim();
-            return objectMapper.readValue(jsonText, AnalysisResponse.AnalysisData.class);
-        } catch (Exception e) { return new AnalysisResponse.AnalysisData("Failed to parse response."); }
+    private String cleanJsonText(String text) {
+        if (text == null) return "{}";
+        text = text.trim();
+        
+        // Remove markdown code blocks if present
+        if (text.startsWith("```")) {
+            text = text.replaceAll("^```[a-zA-Z]*", "").replaceAll("```$", "");
+        }
+        
+        // Find first '{' or '['
+        int firstBrace = text.indexOf('{');
+        int firstBracket = text.indexOf('[');
+        
+        if (firstBrace == -1 && firstBracket == -1) return text; // Give up, return as is
+        
+        int start = 0;
+        int end = text.length();
+        
+        if (firstBrace != -1 && (firstBracket == -1 || firstBrace < firstBracket)) {
+            start = firstBrace;
+            end = text.lastIndexOf('}') + 1;
+        } else if (firstBracket != -1) {
+            start = firstBracket;
+            end = text.lastIndexOf(']') + 1;
+        }
+        
+        if (end > start) {
+            return text.substring(start, end);
+        }
+        return text;
     }
 
     private String extractTextFromResponse(Map<String, Object> responseBody) {
