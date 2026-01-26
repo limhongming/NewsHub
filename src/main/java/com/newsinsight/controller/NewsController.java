@@ -185,9 +185,35 @@ public class NewsController {
         
         List<MergedNewsCluster> validNew = new java.util.ArrayList<>();
         if (newClusters != null) {
+            // Create a map of URL to Content for easy lookup
+            Map<String, String> urlContentMap = new java.util.HashMap<>();
+            for (NewsItem item : items) {
+                urlContentMap.put(item.link(), item.summary()); // summary holds full text here
+            }
+
             for (MergedNewsCluster c : newClusters) {
                 if (!c.topic().contains("Error")) {
                     validNew.add(c);
+                    
+                    // ALSO cache as "Full Article" so "Read Full Article" works instantly
+                    if (c.related_links() != null && !c.related_links().isEmpty()) {
+                        String link = c.related_links().get(0);
+                        String content = urlContentMap.get(link);
+                        
+                        if (content != null) {
+                            AnalysisResponse.AnalysisData data = new AnalysisResponse.AnalysisData();
+                            data.setSummary(c.summary());
+                            data.setEconomic_impact(c.economic_impact());
+                            data.setGlobal_impact(c.global_impact());
+                            try {
+                                data.setImpact_rating(Integer.parseInt(c.impact_rating()));
+                            } catch (Exception e) { data.setImpact_rating(0); }
+                            data.setUrgency("Imported"); // Default for manual import
+
+                            AnalysisResponse response = new AnalysisResponse(data, content);
+                            newsCacheService.cacheArticleAnalysis(link, response);
+                        }
+                    }
                 }
             }
         }
