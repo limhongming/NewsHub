@@ -702,223 +702,238 @@
                             <h5 class="card-title text-light">${item.title}</h5>
                             <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>
                             <p class="card-text text-secondary flex-grow-1 small">${item.summary || 'Fetching...'}</p>
-                            <div class="ai-placeholder mt-3">
-                                <div class="d-flex align-items-center loading-label">
-                                    <div class="spinner-grow spinner-grow-sm text-warning me-2" role="status"></div>
-                                    <span>AI Analysis: Still Loading...</span>
-                                </div>
-                            </div>
-                            <div class="mt-3">
-                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100">Read Full Article</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-            
-            return card;
-        }
-        
-
-
-        function loadBBCSeparated(forceRefresh = false) {
-            // This function will be implemented below
-            loadBBCArticlesSeparated(forceRefresh);
-        }
-        function loadCNNMerged(forceRefresh = false) { loadFeed('cnn', '/api/news/cnn', '/api/news/merged', forceRefresh); }
-        function switchTab(tab) { 
-            currentTab = tab; 
-            if (tab === 'bbc-new') loadBBCSeparated(); 
-            if (tab === 'bbc-summarized') loadBBCSeparated(); // This will load both, but show the summarized tab
-            if (tab === 'cnn') loadCNNMerged(); 
-        }
-        function refreshCurrentTab() { 
-            if (currentTab === 'bbc-new' || currentTab === 'bbc-summarized') loadBBCSeparated(true); 
-            else if (currentTab === 'cnn') loadCNNMerged(true); 
-        }
-
-        async function openAnalysisModal(title, url) {
-            const loader = document.getElementById('global-loader');
-            const modalElement = new bootstrap.Modal(document.getElementById('analysisModal'));
-            const titleEl = document.getElementById('modal-title');
-            const urgencyEl = document.getElementById('urgency-badge');
-            const scoreEl = document.getElementById('impact-score');
-            const summaryEl = document.getElementById('ai-summary');
-            const econEl = document.getElementById('ai-econ');
-            const worldEl = document.getElementById('ai-world');
-            const articleEl = document.getElementById('article-text');
-            const linkEl = document.getElementById('original-link');
-            titleEl.innerText = title; articleEl.innerText = "Fetching content..."; summaryEl.innerText = "Analyzing..."; econEl.innerText = "..."; worldEl.innerText = "..."; scoreEl.innerText = "-"; urgencyEl.className = "impact-badge bg-secondary"; urgencyEl.innerText = "PENDING"; linkEl.href = url;
-            loader.style.display = 'block';
-            try {
-                const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    const ai = data.analysis;
-                    summaryEl.innerText = ai.summary || "No summary provided."; 
-                    econEl.innerText = ai.economic_impact || "N/A"; 
-                    worldEl.innerText = ai.global_impact || "N/A"; 
-                    scoreEl.innerText = ai.impact_rating || "?"; 
-                    articleEl.innerText = data.full_text || "No text.";
-                    const urgency = (ai.urgency || "Unknown").toString(); 
-                    urgencyEl.innerText = urgency.toUpperCase(); 
-                    urgencyEl.className = "impact-badge";
-                    const urg = urgency.toLowerCase(); 
-                    if (urg.includes('high') || urg.includes('critical')) {
-                        urgencyEl.classList.add('bg-danger', 'text-white');
-                    } else if (urg.includes('medium')) {
-                        urgencyEl.classList.add('bg-warning', 'text-dark');
-                    } else {
-                        urgencyEl.classList.add('bg-success', 'text-white');
-                    }
-                } else {
-                    // Try to parse error message from response
-                    let errorMsg;
-                    try {
-                        // Try to parse as JSON
-                        const errorData = await response.json();
-                        errorMsg = errorData.error || errorData.message || `Error ${response.status}: ${response.statusText}`;
-                    } catch (parseError) {
-                        // If not JSON, try as text
-                        errorMsg = await response.text();
-                        if (!errorMsg) {
-                            errorMsg = `Error ${response.status}: ${response.statusText}`;
-                        }
-                    }
-                    articleEl.innerText = `Error: ${errorMsg}`;
-                }
-                modalElement.show();
-            } catch(e) { 
-                articleEl.innerText = "Connection Failed: " + e.message; 
-                modalElement.show(); 
-            } finally { 
-                loader.style.display = 'none'; 
-            }
-        }
-
-        async function loadModels() {
-            try {
-                const response = await fetch('/api/models');
-                if (!response.ok) throw new Error("Failed to load models");
-                const models = await response.json();
-                const select = document.getElementById('model-select');
-                select.innerHTML = '';
-                if (models.length === 0) {
-                    const opt = document.createElement('option'); opt.text = "Default (Gemini 1.5 Flash)"; opt.value = "gemini-1.5-flash"; select.add(opt);
-                } else {
-                    models.sort((a, b) => { if (a.name.includes('flash') && !b.name.includes('flash')) return -1; if (!a.name.includes('flash') && b.name.includes('flash')) return 1; return a.name.localeCompare(b.name); });
-                    models.forEach(model => {
-                        const opt = document.createElement('option'); opt.value = model.name; opt.text = model.displayName + " (" + model.version + ")";
-                        if (model.name === 'gemini-1.5-flash') opt.selected = true; 
-                        select.add(opt);
-                    });
-                }
-                initTooltips();
-            } catch (e) { console.error("Could not load models:", e); }
-        }
-
-        function initTooltips() {
-            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-            tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) });
-        }
-
-        async function runImport() {
-            const textarea = document.getElementById('import-urls');
-            const statusDiv = document.getElementById('import-status');
-            const raw = textarea.value;
-            if (!raw.trim()) return;
-            
-            const urls = raw.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
-            if (urls.length === 0) {
-                statusDiv.innerHTML = '<span class="text-danger">No valid URLs found.</span>';
-                return;
-            }
-
-            statusDiv.innerHTML = '<span class="text-warning">Processing ' + urls.length + ' articles... This may take a moment.</span>';
-            const btn = document.querySelector('#importModal .btn-primary');
-            btn.disabled = true;
-
-            try {
-                const response = await fetch('/api/news/import', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ urls: urls })
-                });
-                
-                if (response.ok) {
-                    const msg = await response.text();
-                    statusDiv.innerHTML = '<span class="text-success">' + msg + '</span>';
-                    setTimeout(() => {
-                        textarea.value = '';
-                        btn.disabled = false;
-                        bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();
-                        refreshCurrentTab();
-                    }, 2000);
-                } else {
-                    statusDiv.innerHTML = '<span class="text-danger">Import failed: ' + response.statusText + '</span>';
-                    btn.disabled = false;
-                }
-            } catch (e) {
-                statusDiv.innerHTML = '<span class="text-danger">Error: ' + e.message + '</span>';
-                btn.disabled = false;
-            }
-        }
-
-        // Refresh button countdown
-        let refreshCountdown = 0;
-        let refreshTimer = null;
-        
-        function updateRefreshButton() {
-            const button = document.getElementById('refresh-button');
-            if (refreshCountdown > 0) {
-                button.textContent = `Refresh (${refreshCountdown}s)`;
-                button.disabled = true;
-                button.classList.remove('btn-outline-light');
-                button.classList.add('btn-secondary');
-            } else {
-                button.textContent = 'Refresh';
-                button.disabled = false;
-                button.classList.remove('btn-secondary');
-                button.classList.add('btn-outline-light');
-                if (refreshTimer) {
-                    clearInterval(refreshTimer);
-                    refreshTimer = null;
-                }
-            }
-        }
-        
-        function startRefreshCountdown() {
-            refreshCountdown = 30;
-            updateRefreshButton();
-            if (refreshTimer) clearInterval(refreshTimer);
-            refreshTimer = setInterval(() => {
-                refreshCountdown--;
-                updateRefreshButton();
-                if (refreshCountdown <= 0) {
-                    clearInterval(refreshTimer);
-                    refreshTimer = null;
-                }
-            }, 1000);
-        }
-        
-        // Override the refreshCurrentTab function
-        const originalRefreshCurrentTab = refreshCurrentTab;
-        refreshCurrentTab = function() {
-            if (refreshCountdown > 0) return;
-            startRefreshCountdown();
-            originalRefreshCurrentTab();
-        };
-        
-        // Set up event listener for refresh button
-        document.getElementById('refresh-button').addEventListener('click', refreshCurrentTab);
-        
-        window.onload = function() { 
-            loadModels(); 
-            loadBBCSeparated(); 
-            updateRefreshButton(); // Initial button state
-        };
-    </script>
+                                                        <div class="ai-placeholder mt-3">
+                                                            <div class="d-flex align-items-center loading-label">
+                                                                <div class="spinner-grow spinner-grow-sm text-secondary me-2" role="status"></div>
+                                                                <span class="text-muted small">Queued for Background Analysis...</span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="mt-3">
+                                                            <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100">Read Full Article</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        }
+                                        
+                                        return card;
+                                    }
+                                    
+                                    let pollInterval;
+                            
+                                    function startAutoPoll() {
+                                        if (pollInterval) clearInterval(pollInterval);
+                                        // Poll every 5 seconds to check for updates
+                                        pollInterval = setInterval(() => {
+                                            // Only poll if we are on a BBC tab
+                                            if (currentTab === 'bbc-new' || currentTab === 'bbc-summarized') {
+                                                // Pass true to bypass cache if needed, or false to just check for changes. 
+                                                // Actually, loadBBCArticlesSeparated fetches from API endpoints which return cached data.
+                                                // We just need to re-run the fetching logic to see if the server's list changed.
+                                                loadBBCSeparated(false); 
+                                            }
+                                        }, 5000);
+                                    }
+                            
+                            
+                                    function loadBBCSeparated(forceRefresh = false) {
+                                        // This function will be implemented below
+                                        loadBBCArticlesSeparated(forceRefresh);
+                                    }
+                                    function loadCNNMerged(forceRefresh = false) { loadFeed('cnn', '/api/news/cnn', '/api/news/merged', forceRefresh); }
+                                    function switchTab(tab) { 
+                                        currentTab = tab; 
+                                        if (tab === 'bbc-new') loadBBCSeparated(); 
+                                        if (tab === 'bbc-summarized') loadBBCSeparated(); // This will load both, but show the summarized tab
+                                        if (tab === 'cnn') loadCNNMerged(); 
+                                    }
+                                    function refreshCurrentTab() { 
+                                        if (currentTab === 'bbc-new' || currentTab === 'bbc-summarized') loadBBCSeparated(true); 
+                                        else if (currentTab === 'cnn') loadCNNMerged(true); 
+                                    }
+                            
+                                    async function openAnalysisModal(title, url) {
+                                        const loader = document.getElementById('global-loader');
+                                        const modalElement = new bootstrap.Modal(document.getElementById('analysisModal'));
+                                        const titleEl = document.getElementById('modal-title');
+                                        const urgencyEl = document.getElementById('urgency-badge');
+                                        const scoreEl = document.getElementById('impact-score');
+                                        const summaryEl = document.getElementById('ai-summary');
+                                        const econEl = document.getElementById('ai-econ');
+                                        const worldEl = document.getElementById('ai-world');
+                                        const articleEl = document.getElementById('article-text');
+                                        const linkEl = document.getElementById('original-link');
+                                        titleEl.innerText = title; articleEl.innerText = "Fetching content..."; summaryEl.innerText = "Analyzing..."; econEl.innerText = "..."; worldEl.innerText = "..."; scoreEl.innerText = "-"; urgencyEl.className = "impact-badge bg-secondary"; urgencyEl.innerText = "PENDING"; linkEl.href = url;
+                                        loader.style.display = 'block';
+                                        try {
+                                            const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) });
+                                            
+                                            if (response.ok) {
+                                                const data = await response.json();
+                                                const ai = data.analysis;
+                                                summaryEl.innerText = ai.summary || "No summary provided."; 
+                                                econEl.innerText = ai.economic_impact || "N/A"; 
+                                                worldEl.innerText = ai.global_impact || "N/A"; 
+                                                scoreEl.innerText = ai.impact_rating || "?"; 
+                                                articleEl.innerText = data.full_text || "No text.";
+                                                const urgency = (ai.urgency || "Unknown").toString(); 
+                                                urgencyEl.innerText = urgency.toUpperCase(); 
+                                                urgencyEl.className = "impact-badge";
+                                                const urg = urgency.toLowerCase(); 
+                                                if (urg.includes('high') || urg.includes('critical')) {
+                                                    urgencyEl.classList.add('bg-danger', 'text-white');
+                                                } else if (urg.includes('medium')) {
+                                                    urgencyEl.classList.add('bg-warning', 'text-dark');
+                                                } else {
+                                                    urgencyEl.classList.add('bg-success', 'text-white');
+                                                }
+                                            } else {
+                                                // Try to parse error message from response
+                                                let errorMsg;
+                                                try {
+                                                    // Try to parse as JSON
+                                                    const errorData = await response.json();
+                                                    errorMsg = errorData.error || errorData.message || `Error ${response.status}: ${response.statusText}`;
+                                                } catch (parseError) {
+                                                    // If not JSON, try as text
+                                                    errorMsg = await response.text();
+                                                    if (!errorMsg) {
+                                                        errorMsg = `Error ${response.status}: ${response.statusText}`;
+                                                    }
+                                                }
+                                                articleEl.innerText = `Error: ${errorMsg}`;
+                                            }
+                                            modalElement.show();
+                                        } catch(e) { 
+                                            articleEl.innerText = "Connection Failed: " + e.message; 
+                                            modalElement.show(); 
+                                        } finally { 
+                                            loader.style.display = 'none'; 
+                                        }
+                                    }
+                            
+                                    async function loadModels() {
+                                        try {
+                                            const response = await fetch('/api/models');
+                                            if (!response.ok) throw new Error("Failed to load models");
+                                            const models = await response.json();
+                                            const select = document.getElementById('model-select');
+                                            select.innerHTML = '';
+                                            if (models.length === 0) {
+                                                const opt = document.createElement('option'); opt.text = "Default (Gemini 1.5 Flash)"; opt.value = "gemini-1.5-flash"; select.add(opt);
+                                            } else {
+                                                models.sort((a, b) => { if (a.name.includes('flash') && !b.name.includes('flash')) return -1; if (!a.name.includes('flash') && b.name.includes('flash')) return 1; return a.name.localeCompare(b.name); });
+                                                models.forEach(model => {
+                                                    const opt = document.createElement('option'); opt.value = model.name; opt.text = model.displayName + " (" + model.version + ")";
+                                                    if (model.name === 'gemini-1.5-flash') opt.selected = true; 
+                                                    select.add(opt);
+                                                });
+                                            }
+                                            initTooltips();
+                                        } catch (e) { console.error("Could not load models:", e); }
+                                    }
+                            
+                                    function initTooltips() {
+                                        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+                                        tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) });
+                                    }
+                            
+                                    async function runImport() {
+                                        const textarea = document.getElementById('import-urls');
+                                        const statusDiv = document.getElementById('import-status');
+                                        const raw = textarea.value;
+                                        if (!raw.trim()) return;
+                                        
+                                        const urls = raw.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+                                        if (urls.length === 0) {
+                                            statusDiv.innerHTML = '<span class="text-danger">No valid URLs found.</span>';
+                                            return;
+                                        }
+                            
+                                        statusDiv.innerHTML = '<span class="text-warning">Processing ' + urls.length + ' articles... This may take a moment.</span>';
+                                        const btn = document.querySelector('#importModal .btn-primary');
+                                        btn.disabled = true;
+                            
+                                        try {
+                                            const response = await fetch('/api/news/import', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ urls: urls })
+                                            });
+                                            
+                                            if (response.ok) {
+                                                const msg = await response.text();
+                                                statusDiv.innerHTML = '<span class="text-success">' + msg + '</span>';
+                                                setTimeout(() => {
+                                                    textarea.value = '';
+                                                    btn.disabled = false;
+                                                    bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();      
+                                                    refreshCurrentTab();
+                                                }, 2000);
+                                            } else {
+                                                statusDiv.innerHTML = '<span class="text-danger">Import failed: ' + response.statusText + '</span>';
+                                                btn.disabled = false;
+                                            }
+                                        } catch (e) {
+                                            statusDiv.innerHTML = '<span class="text-danger">Error: ' + e.message + '</span>';       
+                                            btn.disabled = false;
+                                        }
+                                    }
+                            
+                                    // Refresh button countdown
+                                    let refreshCountdown = 0;
+                                    let refreshTimer = null;
+                                    
+                                    function updateRefreshButton() {
+                                        const button = document.getElementById('refresh-button');
+                                        if (refreshCountdown > 0) {
+                                            button.textContent = `Refresh (${refreshCountdown}s)`;
+                                            button.disabled = true;
+                                            button.classList.remove('btn-outline-light');
+                                            button.classList.add('btn-secondary');
+                                        } else {
+                                            button.textContent = 'Refresh';
+                                            button.disabled = false;
+                                            button.classList.remove('btn-secondary');
+                                            button.classList.add('btn-outline-light');
+                                            if (refreshTimer) {
+                                                clearInterval(refreshTimer);
+                                                refreshTimer = null;
+                                            }
+                                        }
+                                    }
+                                    
+                                    function startRefreshCountdown() {
+                                        refreshCountdown = 30;
+                                        updateRefreshButton();
+                                        if (refreshTimer) clearInterval(refreshTimer);
+                                        refreshTimer = setInterval(() => {
+                                            refreshCountdown--;
+                                            updateRefreshButton();
+                                            if (refreshCountdown <= 0) {
+                                                clearInterval(refreshTimer);
+                                                refreshTimer = null;
+                                            }
+                                        }, 1000);
+                                    }
+                                    
+                                    // Override the refreshCurrentTab function
+                                    const originalRefreshCurrentTab = refreshCurrentTab;
+                                    refreshCurrentTab = function() {
+                                        if (refreshCountdown > 0) return;
+                                        startRefreshCountdown();
+                                        originalRefreshCurrentTab();
+                                    };
+                                    
+                                    // Set up event listener for refresh button
+                                    document.getElementById('refresh-button').addEventListener('click', refreshCurrentTab);
+                                    
+                                    window.onload = function() { 
+                                        loadModels(); 
+                                        loadBBCSeparated(); 
+                                        updateRefreshButton(); // Initial button state
+                                        startAutoPoll(); // Start auto-refreshing lists
+                                    };    </script>
     <footer class="text-center mt-5 mb-4 text-secondary small">NewsHub v1.7.2 | Model used badges & Enhanced Fallback Logic</footer>
 </body>
 </html>
