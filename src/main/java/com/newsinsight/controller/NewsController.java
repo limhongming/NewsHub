@@ -57,6 +57,11 @@ public class NewsController {
 
     @GetMapping("/news/merged")
     public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-1.5-flash") String model) {
+        // Fix for deprecated/invalid model names
+        if (model.contains("2.5")) {
+            model = "gemini-1.5-flash";
+        }
+        
         List<MergedNewsCluster> cached = newsCacheService.getCachedNews("cnn", lang, model);
         if (cached != null) return cached;
 
@@ -66,6 +71,11 @@ public class NewsController {
 
     @GetMapping("/news/bbc/merged")
     public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-1.5-flash") String model) {
+        // Fix for deprecated/invalid model names
+        if (model.contains("2.5")) {
+            model = "gemini-1.5-flash";
+        }
+
         // Return cached news immediately. 
         // Background updates are handled by NewsSchedulerService.
         List<MergedNewsCluster> cached = newsCacheService.getCachedNews("bbc", lang, model);
