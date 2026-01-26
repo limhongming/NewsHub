@@ -174,68 +174,72 @@ public class NewsController {
 
         System.out.println("IMPORT: Received " + urls.size() + " URLs for manual import.");
         
-        // 1. Scrape Items
-        List<NewsItem> items = new java.util.ArrayList<>();
-        for (String url : urls) {
-            items.add(newsService.scrapeNewsItem(url));
-        }
-
-        // 2. Analyze (using existing logic)
-        // This will process them (sequentially or batch depending on logic) and return clusters
-        List<MergedNewsCluster> newClusters = newsSystemService.processAndClusterNews(
-            items, "English", false, "gemini-1.5-flash"
-        );
-        
-        // 3. Update Cache
-        // We append these to the BBC cache for now, or we could have a "Manual" tab. 
-        // User requested "Manual Import" to backfill, likely for BBC/General.
-        // Let's add to BBC cache as that's the primary view.
-        List<MergedNewsCluster> currentCache = newsCacheService.getCachedNews("bbc", "English", "gemini-1.5-flash");
-        if (currentCache == null) currentCache = new java.util.ArrayList<>();
-        
-        List<MergedNewsCluster> validNew = new java.util.ArrayList<>();
-        if (newClusters != null) {
-            // Create a map of URL to Content for easy lookup
-            Map<String, String> urlContentMap = new java.util.HashMap<>();
-            for (NewsItem item : items) {
-                urlContentMap.put(item.link(), item.summary()); // summary holds full text here
+        try {
+            // 1. Scrape Items
+            List<NewsItem> items = new java.util.ArrayList<>();
+            for (String url : urls) {
+                items.add(newsService.scrapeNewsItem(url));
             }
 
-            for (MergedNewsCluster c : newClusters) {
-                if (!c.topic().contains("Error")) {
-                    validNew.add(c);
-                    
-                    // ALSO cache as "Full Article" so "Read Full Article" works instantly
-                    if (c.related_links() != null && !c.related_links().isEmpty()) {
-                        String link = c.related_links().get(0);
-                        String content = urlContentMap.get(link);
-                        
-                        if (content != null) {
-                            AnalysisResponse.AnalysisData data = new AnalysisResponse.AnalysisData();
-                            data.setSummary(c.summary());
-                            data.setEconomic_impact(c.economic_impact());
-                            data.setGlobal_impact(c.global_impact());
-                            try {
-                                data.setImpact_rating(Integer.parseInt(c.impact_rating()));
-                            } catch (Exception e) { data.setImpact_rating(0); }
-                            data.setUrgency("Imported"); // Default for manual import
+            // 2. Analyze (using existing logic)
+            // This will process them (sequentially or batch depending on logic) and return clusters
+            List<MergedNewsCluster> newClusters = newsSystemService.processAndClusterNews(
+                items, "English", false, "gemini-1.5-flash"
+            );
+            
+            // 3. Update Cache
+            // We append these to the BBC cache for now, or we could have a "Manual" tab. 
+            // User requested "Manual Import" to backfill, likely for BBC/General.
+            // Let's add to BBC cache as that's the primary view.
+            List<MergedNewsCluster> currentCache = newsCacheService.getCachedNews("bbc", "English", "gemini-1.5-flash");
+            if (currentCache == null) currentCache = new java.util.ArrayList<>();
+            
+            List<MergedNewsCluster> validNew = new java.util.ArrayList<>();
+            if (newClusters != null) {
+                // Create a map of URL to Content for easy lookup
+                Map<String, String> urlContentMap = new java.util.HashMap<>();
+                for (NewsItem item : items) {
+                    urlContentMap.put(item.link(), item.summary()); // summary holds full text here
+                }
 
-                            AnalysisResponse response = new AnalysisResponse(data, content);
-                            newsCacheService.cacheArticleAnalysis(link, response);
+                for (MergedNewsCluster c : newClusters) {
+                    if (!c.topic().contains("Error")) {
+                        validNew.add(c);
+                        
+                        // ALSO cache as "Full Article" so "Read Full Article" works instantly
+                        if (c.related_links() != null && !c.related_links().isEmpty()) {
+                            String link = c.related_links().get(0);
+                            String content = urlContentMap.get(link);
+                            
+                            if (content != null) {
+                                AnalysisResponse.AnalysisData data = new AnalysisResponse.AnalysisData();
+                                data.setSummary(c.summary());
+                                data.setEconomic_impact(c.economic_impact());
+                                data.setGlobal_impact(c.global_impact());
+                                try {
+                                    data.setImpact_rating(Integer.parseInt(c.impact_rating()));
+                                } catch (Exception e) { data.setImpact_rating(0); }
+                                data.setUrgency("Imported"); // Default for manual import
+
+                                AnalysisResponse response = new AnalysisResponse(data, content);
+                                newsCacheService.cacheArticleAnalysis(link, response);
+                            }
                         }
                     }
                 }
             }
-        }
-        
-        if (!validNew.isEmpty()) {
-            // Add to top
-            List<MergedNewsCluster> merged = new java.util.ArrayList<>(validNew);
-            merged.addAll(currentCache);
-            newsCacheService.cacheNews("bbc", "English", "gemini-1.5-flash", merged);
-            return ResponseEntity.ok("Successfully imported " + validNew.size() + " articles.");
-        } else {
-            return ResponseEntity.ok("No valid articles could be imported (Analysis failed or empty).");
+            
+            if (!validNew.isEmpty()) {
+                // Add to top
+                List<MergedNewsCluster> merged = new java.util.ArrayList<>(validNew);
+                merged.addAll(currentCache);
+                newsCacheService.cacheNews("bbc", "English", "gemini-1.5-flash", merged);
+                return ResponseEntity.ok("Successfully imported " + validNew.size() + " articles.");
+            } else {
+                return ResponseEntity.ok("No valid articles could be imported (Analysis failed or empty).");
+            }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Import Failed: " + e.getMessage());
         }
     }
 

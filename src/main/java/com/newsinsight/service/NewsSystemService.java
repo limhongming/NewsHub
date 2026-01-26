@@ -610,6 +610,9 @@ public class NewsSystemService {
                         markModelFailure(model);
                     }
                 } catch (HttpClientErrorException e) {
+                    String rawResponseBody = e.getResponseBodyAsString();
+                    System.err.println("CRITICAL: API Error for model " + model + ". Status: " + e.getStatusCode() + ". Body: " + rawResponseBody);
+                    
                     if (e.getStatusCode().value() == 429) {
                         // Rate limit hit - update cooldown timer and track
                         lastRateLimitTime = System.currentTimeMillis();
