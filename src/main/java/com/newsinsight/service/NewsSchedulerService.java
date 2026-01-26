@@ -153,18 +153,27 @@ public class NewsSchedulerService {
             // Add to the TOP of the list
             List<MergedNewsCluster> newList = new ArrayList<>();
             newList.add(newResult);
-            newList.addAll(currentCache);
+            if (currentCache != null) {
+                newList.addAll(currentCache);
+            }
             
             // Limit list size to prevent infinite growth (e.g., keep last 50)
             if (newList.size() > 50) {
                 newList = newList.subList(0, 50);
             }
 
-            newsCacheService.cacheNews(tabName, TARGET_LANG, TARGET_MODEL, newList);
-            System.out.println("SCHEDULER: Saved new analysis for " + tabName + ". Cache size: " + newList.size());
+            System.out.println("SCHEDULER: Analysis success for: " + candidate.title() + ". Saving " + newList.size() + " items to DB...");
+            try {
+                newsCacheService.cacheNews(tabName, TARGET_LANG, TARGET_MODEL, newList);
+                System.out.println("SCHEDULER: DB Save Complete for " + tabName);
+            } catch (Exception e) {
+                System.err.println("SCHEDULER: DB Save FAILED: " + e.getMessage());
+                e.printStackTrace();
+            }
             return true; // We did work
         } else {
-            System.err.println("SCHEDULER: Failed to analyze item: " + candidate.title());
+            String error = (newResult != null) ? newResult.summary() : "Result was null";
+            System.err.println("SCHEDULER: Failed to analyze item: " + candidate.title() + " -> " + error);
             // We might want to mark it as ignored so we don't retry forever?
             // For now, we'll just return true (work attempted) and it will retry next time or we can add a dummy error entry.
             // To prevent blocking, let's add a dummy entry so we skip it next time.
