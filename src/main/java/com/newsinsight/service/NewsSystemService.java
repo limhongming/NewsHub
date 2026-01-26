@@ -563,11 +563,11 @@ public class NewsSystemService {
             for (int i = 0; i < modelsToTry.size(); i++) {
                 String model = modelsToTry.get(i);
                 
-                // CRITICAL FIX: Alias non-existent "2.5" models to stable 1.5 models to prevent 404s
+                // CRITICAL FIX: Alias non-existent "2.5" models to stable legacy model to prevent 404s
                 // while satisfying system/user preferences for "Flash Lite".
                 if (model.contains("2.5") || model.contains("2.0")) {
-                    System.out.println("DEBUG: Auto-mapping " + model + " to gemini-1.5-flash for API stability.");
-                    model = "gemini-1.5-flash";
+                    System.out.println("DEBUG: Auto-mapping " + model + " to gemini-pro for API stability.");
+                    model = "gemini-pro";
                 }
                 
                 try {
