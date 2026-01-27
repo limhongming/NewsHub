@@ -144,6 +144,38 @@ public class NewsService {
             if (!metaImage.isEmpty()) {
                 imageUrl = metaImage.first().attr("content");
             }
+            
+            // Fallback: Check JSON-LD for "image" or "thumbnailUrl"
+            if (imageUrl == null) {
+                Elements scripts = doc.select("script[type=application/ld+json]");
+                for (org.jsoup.nodes.Element script : scripts) {
+                    String json = script.data();
+                    // Simple regex to find "image": "url" or "image": { "url": "..." }
+                    // BBC/CNN often use "image": { "@type": "ImageObject", "url": "..." }
+                    java.util.regex.Pattern p = java.util.regex.Pattern.compile("\"image\"\\s*:\\s*\\{\\s*\"@type\"\\s*:\\s*\"ImageObject\"\\s*,\\s*\"url\"\\s*:\\s*\"([^\"]+)\"");
+                    java.util.regex.Matcher m = p.matcher(json);
+                    if (m.find()) {
+                        imageUrl = m.group(1);
+                        break;
+                    }
+                    
+                    // Try simpler pattern: "image": "url"
+                    p = java.util.regex.Pattern.compile("\"image\"\\s*:\\s*\"([^\"]+)\"");
+                    m = p.matcher(json);
+                    if (m.find()) {
+                        imageUrl = m.group(1);
+                        break;
+                    }
+                    
+                    // Try "thumbnailUrl": "url"
+                    p = java.util.regex.Pattern.compile("\"thumbnailUrl\"\\s*:\\s*\"([^\"]+)\"");
+                    m = p.matcher(json);
+                    if (m.find()) {
+                        imageUrl = m.group(1);
+                        break;
+                    }
+                }
+            }
 
             // Clean up for content extraction
             doc.select("script, style, nav, footer, .advert, .sidebar, .related, .comments").remove();
