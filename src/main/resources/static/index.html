@@ -170,10 +170,7 @@
             <div class="d-flex align-items-center gap-2">
                 <div class="input-group input-group-sm">
                     <select id="model-select" class="form-select bg-dark text-light border-secondary" style="width: auto;">
-                        <option value="deepseek-chat" selected>DeepSeek V3</option>
-                        <option value="deepseek-reasoner">DeepSeek R1</option>
-                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
-                        <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                        <option value="gemini-1.5-flash" selected>Gemini 1.5 Flash</option>
                         <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                     </select>
                     <span id="fallback-info" class="input-group-text bg-dark border-secondary text-secondary" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Auto-Fallback Active: If your selected model hits a rate limit, the system will automatically try others to ensure you get results.">
@@ -836,21 +833,16 @@
                                             const models = await response.json();
                                             const select = document.getElementById('model-select');
                                             select.innerHTML = '';
-                                                                                                        if (models.length === 0) {
-                                                                                                            const opt = document.createElement('option'); opt.text = "Default (DeepSeek V3)"; opt.value = "deepseek-chat"; select.add(opt);
-                                                                                                        } else {
-                                                                                                            models.sort((a, b) => { 
-                                                                                                                if (a.name.includes('flash') && !b.name.includes('flash')) return -1; 
-                                                                                                                if (!a.name.includes('flash') && b.name.includes('flash')) return 1; 
-                                                                                                                return a.name.localeCompare(b.name); 
-                                                                                                            });
-                                                                                                            models.forEach(model => {
-                                                                                                                const opt = document.createElement('option'); opt.value = model.name; 
-                                                                                                                opt.text = model.displayName ? model.displayName + " (" + model.version + ")" : model.name;
-                                                                                                                if (model.name === 'deepseek-chat') opt.selected = true; 
-                                                                                                                select.add(opt);
-                                                                                                            });
-                                                                                                        }                                            initTooltips();
+                if (models.length === 0) {
+                    const opt = document.createElement('option'); opt.text = "Default (Gemini 1.5 Flash)"; opt.value = "gemini-1.5-flash"; select.add(opt);
+                } else {
+                    models.sort((a, b) => { if (a.name.includes('flash') && !b.name.includes('flash')) return -1; if (!a.name.includes('flash') && b.name.includes('flash')) return 1; return a.name.localeCompare(b.name); });
+                    models.forEach(model => {
+                        const opt = document.createElement('option'); opt.value = model.name; opt.text = model.displayName + " (" + model.version + ")";
+                        if (model.name === 'gemini-1.5-flash') opt.selected = true; 
+                        select.add(opt);
+                    });
+                }                                            initTooltips();
                                         } catch (e) { console.error("Could not load models:", e); }
                                     }
                             

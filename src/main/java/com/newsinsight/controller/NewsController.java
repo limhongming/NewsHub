@@ -56,9 +56,10 @@ public class NewsController {
     }
 
     @GetMapping("/news/merged")
-    public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "deepseek-chat") String model) {
-        // Fix for deprecated/invalid model names
-        if (model.contains("2.5")) {
+    public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-1.5-flash") String model) {
+        // Fix for deprecated/invalid model names: Map "2.5" requests to a stable model.
+        if (model.contains("2.5") || model.contains("2.0")) {
+            System.out.println("CONTROLLER: Model " + model + " requested, mapping to gemini-1.5-flash.");
             model = "gemini-1.5-flash";
         }
         
@@ -70,9 +71,15 @@ public class NewsController {
     }
 
     @GetMapping("/news/bbc/merged")
-    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "deepseek-chat") String model) {
+    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-1.5-flash") String model) {
         System.out.println("CONTROLLER: getBBCMergedNews request for model: " + model);
         
+        // Fix for deprecated/invalid model names: Map "2.5" requests to a stable model.
+        if (model.contains("2.5") || model.contains("2.0")) {
+            System.out.println("CONTROLLER: Model " + model + " requested, mapping to gemini-1.5-flash.");
+            model = "gemini-1.5-flash";
+        }
+
         // Return cached news immediately. 
         // Background updates are handled by NewsSchedulerService.
         List<MergedNewsCluster> cached = newsCacheService.getCachedNews("bbc", lang, model);
