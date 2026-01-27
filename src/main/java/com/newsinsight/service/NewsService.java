@@ -106,13 +106,19 @@ public class NewsService {
                         if (imageUrl == null && entry.getForeignMarkup() != null) {
                             for (org.jdom2.Element element : entry.getForeignMarkup()) {
                                 if ("content".equals(element.getName()) && "http://search.yahoo.com/mrss/".equals(element.getNamespace().getURI())) {
-                                    String type = element.getAttributeValue("type");
-                                    if (type != null && type.startsWith("image")) {
-                                        imageUrl = element.getAttributeValue("url");
-                                        if (imageUrl != null) break;
+                                    String type = element.getAttributeValue("url");
+                                    if (type != null) {
+                                        imageUrl = type;
+                                        break;
                                     }
                                 }
                             }
+                        }
+                        
+                        if (imageUrl != null) {
+                            System.out.println("DEBUG: Image found for [" + entry.getTitle() + "]: " + imageUrl);
+                        } else {
+                            System.out.println("DEBUG: No image found for [" + entry.getTitle() + "]");
                         }
                         
                         newsItems.add(new NewsItem(
