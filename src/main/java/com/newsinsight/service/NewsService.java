@@ -52,7 +52,8 @@ public class NewsService {
                         "No News Found",
                         "#",
                         new java.util.Date(),
-                        "The RSS feed (" + feedUrlStr + ") was accessed but returned no articles. Parsing issue or empty feed."
+                        "The RSS feed (" + feedUrlStr + ") was accessed but returned no articles. Parsing issue or empty feed.",
+                        null
                     ));
                 } else {
                     System.out.println("Successfully parsed " + entries.size() + " entries from " + feedUrlStr);
