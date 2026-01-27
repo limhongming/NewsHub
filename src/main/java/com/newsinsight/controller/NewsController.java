@@ -169,6 +169,11 @@ public class NewsController {
         return clusters != null ? clusters : List.of();
     }
 
+    @GetMapping("/debug/articles")
+    public List<com.newsinsight.model.ArticleCacheEntity> getAllCachedArticles() {
+        return newsCacheService.getAllCachedArticles();
+    }
+
     @PostMapping("/news/import")
     public ResponseEntity<?> manualImport(@RequestBody Map<String, List<String>> payload) {
         List<String> urls = payload.get("urls");

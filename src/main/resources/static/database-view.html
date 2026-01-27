@@ -33,10 +33,34 @@
                 </tbody>
             </table>
         </div>
+
+        <h2 class="mt-5">Article Cache (Raw)</h2>
+        <p class="text-muted">Viewing raw article cache from: <code>article_cache</code> (via /api/debug/articles)</p>
+        <div class="table-responsive">
+            <table class="table table-dark table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>URL</th>
+                        <th>Type</th>
+                        <th>Data (JSON)</th>
+                        <th>Expires</th>
+                    </tr>
+                </thead>
+                <tbody id="article-body">
+                    <tr><td colspan="5" class="text-center">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
         async function loadData() {
+            loadClusters();
+            loadArticles();
+        }
+
+        async function loadClusters() {
             const tbody = document.getElementById('data-body');
             tbody.innerHTML = '<tr><td colspan="6" class="text-center">Loading...</td></tr>';
             
@@ -68,6 +92,37 @@
                 });
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Error: ${e.message}</td></tr>`;
+            }
+        }
+
+        async function loadArticles() {
+            const tbody = document.getElementById('article-body');
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">Loading...</td></tr>';
+            
+            try {
+                const response = await fetch('/api/debug/articles');
+                const data = await response.json();
+                
+                tbody.innerHTML = '';
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center">No cached articles found.</td></tr>';
+                    return;
+                }
+                
+                data.forEach((item, index) => {
+                    const row = `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td class="json-cell" style="word-break: break-all;">${item.url}</td>
+                            <td>${item.cacheType}</td>
+                            <td class="json-cell" style="max-width: 500px; max-height: 100px; overflow: auto; display: block;">${item.dataJson}</td>
+                            <td>${new Date(item.expiresAt).toLocaleString()}</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error: ${e.message}</td></tr>`;
             }
         }
         

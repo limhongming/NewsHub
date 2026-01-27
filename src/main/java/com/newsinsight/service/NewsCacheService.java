@@ -167,6 +167,10 @@ public class NewsCacheService {
         }
     }
 
+    public List<ArticleCacheEntity> getAllCachedArticles() {
+        return articleRepository.findAll();
+    }
+
     private String generateCacheKey(String tab, String lang, String model) {
         return String.format("%s_%s_%s", 
             tab.replaceAll("[^a-zA-Z0-9]", ""), 
