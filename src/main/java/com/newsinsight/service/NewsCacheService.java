@@ -49,7 +49,25 @@ public class NewsCacheService {
                         return null;
                     }
                 })
-                .orElse(null);
+                .orElseGet(() -> {
+                    // Fallback: If '2.5' was requested but '1.5' exists (or vice versa due to aliasing changes)
+                    // try to load the alternative key.
+                    String altModel = model.contains("2.5") ? "gemini-1.5-flash" : 
+                                     (model.contains("1.5") ? "gemini-2.5-flash-lite" : null);
+                    
+                    if (altModel != null) {
+                        String altKey = generateCacheKey(tab, lang, altModel);
+                        return clusterRepository.findByCacheKeyAndNotExpired(altKey, LocalDateTime.now())
+                            .map(entity -> {
+                                try {
+                                    System.out.println("DEBUG: Loading from MySQL cache (Fallback): " + altKey);
+                                    return objectMapper.readValue(entity.getDataJson(), 
+                                            new TypeReference<List<MergedNewsCluster>>() {});
+                                } catch (IOException e) { return null; }
+                            }).orElse(null);
+                    }
+                    return null;
+                });
     }
 
     @Transactional
