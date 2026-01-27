@@ -826,15 +826,24 @@
                                                                                 loader.style.display = 'none'; 
                                                                             }
                                                                         }                            
-                                    async function loadModels() {
-                                        try {
-                                            const response = await fetch('/api/models');
-                                            if (!response.ok) throw new Error("Failed to load models");
-                                            const models = await response.json();
-                                            const select = document.getElementById('model-select');
-                                            select.innerHTML = '';
-                if (models.length === 0) {
-                    const opt = document.createElement('option'); opt.text = "Default (Gemini 1.5 Flash)"; opt.value = "gemini-1.5-flash"; select.add(opt);
+                                                                        async function loadModels() {
+                                                                            try {
+                                                                                const response = await fetch('/api/models');
+                                                                                if (!response.ok) throw new Error("Failed to load models");  
+                                                                                const models = await response.json();
+                                                                                
+                                                                                // Force add Gemini 2.5 Flash Lite if missing (User Preference)
+                                                                                if (!models.find(m => m.name === 'gemini-2.5-flash-lite')) {
+                                                                                    models.unshift({
+                                                                                        name: 'gemini-2.5-flash-lite',
+                                                                                        displayName: 'Gemini Flash Lite',
+                                                                                        version: '2.5'
+                                                                                    });
+                                                                                }
+                                    
+                                                                                const select = document.getElementById('model-select');      
+                                                                                select.innerHTML = '';
+                                                                                if (models.length === 0) {                    const opt = document.createElement('option'); opt.text = "Default (Gemini 1.5 Flash)"; opt.value = "gemini-1.5-flash"; select.add(opt);
                 } else {
                     models.sort((a, b) => { if (a.name.includes('flash') && !b.name.includes('flash')) return -1; if (!a.name.includes('flash') && b.name.includes('flash')) return 1; return a.name.localeCompare(b.name); });
                     models.forEach(model => {
