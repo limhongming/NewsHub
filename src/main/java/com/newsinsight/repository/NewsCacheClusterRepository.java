@@ -19,6 +19,12 @@ public interface NewsCacheClusterRepository extends JpaRepository<NewsCacheClust
     Optional<NewsCacheClusterEntity> findByCacheKeyAndNotExpired(
             @Param("cacheKey") String cacheKey, 
             @Param("now") LocalDateTime now);
+            
+    @Query("SELECT n FROM NewsCacheClusterEntity n WHERE n.tab = :tab AND n.language = :language AND n.expiresAt > :now")
+    java.util.List<NewsCacheClusterEntity> findByTabAndLanguageAndNotExpired(
+            @Param("tab") String tab,
+            @Param("language") String language,
+            @Param("now") LocalDateTime now);
     
     @Modifying
     @Query("DELETE FROM NewsCacheClusterEntity n WHERE n.expiresAt <= :now")

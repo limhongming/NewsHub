@@ -36,38 +36,41 @@ public class NewsCacheService {
     }
 
     public List<MergedNewsCluster> getCachedNews(String tab, String lang, String model) {
-        String cacheKey = generateCacheKey(tab, lang, model);
-        
-        return clusterRepository.findByCacheKeyAndNotExpired(cacheKey, LocalDateTime.now())
-                .map(entity -> {
-                    try {
-                        System.out.println("DEBUG: Loading from MySQL cache: " + cacheKey);
-                        return objectMapper.readValue(entity.getDataJson(), 
-                                new TypeReference<List<MergedNewsCluster>>() {});
-                    } catch (IOException e) {
-                        System.err.println("Error parsing cache JSON: " + e.getMessage());
-                        return null;
+        // If specific model is requested, try to use the "All Models" merge strategy to find data
+        // This ensures data saved under 'gemini-1.5' is visible even if 'deepseek' is selected.
+        return getAllCachedNewsForTab(tab, lang);
+    }
+
+    public List<MergedNewsCluster> getAllCachedNewsForTab(String tab, String lang) {
+        List<NewsCacheClusterEntity> entities = clusterRepository.findByTabAndLanguageAndNotExpired(tab, lang, LocalDateTime.now());
+        if (entities.isEmpty()) return null;
+
+        java.util.Set<String> seenTopics = new java.util.HashSet<>();
+        List<MergedNewsCluster> merged = new java.util.ArrayList<>();
+
+        // Sort entities by newest first to prioritize recent caches
+        entities.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+
+        for (NewsCacheClusterEntity entity : entities) {
+            try {
+                List<MergedNewsCluster> clusters = objectMapper.readValue(entity.getDataJson(), 
+                        new TypeReference<List<MergedNewsCluster>>() {});
+                
+                if (clusters != null) {
+                    for (MergedNewsCluster c : clusters) {
+                        // Deduplicate based on topic or link
+                        String key = c.topic() + (c.related_links() != null && !c.related_links().isEmpty() ? c.related_links().get(0) : "");
+                        if (!seenTopics.contains(key)) {
+                            seenTopics.add(key);
+                            merged.add(c);
+                        }
                     }
-                })
-                .orElseGet(() -> {
-                    // Fallback: If '2.5' was requested but '1.5' exists (or vice versa due to aliasing changes)
-                    // try to load the alternative key.
-                    String altModel = model.contains("2.5") ? "gemini-1.5-flash" : 
-                                     (model.contains("1.5") ? "gemini-2.5-flash-lite" : null);
-                    
-                    if (altModel != null) {
-                        String altKey = generateCacheKey(tab, lang, altModel);
-                        return clusterRepository.findByCacheKeyAndNotExpired(altKey, LocalDateTime.now())
-                            .map(entity -> {
-                                try {
-                                    System.out.println("DEBUG: Loading from MySQL cache (Fallback): " + altKey);
-                                    return objectMapper.readValue(entity.getDataJson(), 
-                                            new TypeReference<List<MergedNewsCluster>>() {});
-                                } catch (IOException e) { return null; }
-                            }).orElse(null);
-                    }
-                    return null;
-                });
+                }
+            } catch (IOException e) {
+                System.err.println("Error parsing cache JSON for ID " + entity.getId() + ": " + e.getMessage());
+            }
+        }
+        return merged.isEmpty() ? null : merged;
     }
 
     @Transactional
