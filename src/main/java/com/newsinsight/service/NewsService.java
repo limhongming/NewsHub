@@ -77,11 +77,28 @@ public class NewsService {
                         }
                         
                         String description = entry.getDescription() != null ? entry.getDescription().getValue() : "";
+                        
+                        // Extract Image URL
+                        String imageUrl = null;
+                        if (entry.getEnclosures() != null && !entry.getEnclosures().isEmpty()) {
+                            for (com.rometools.rome.feed.synd.SyndEnclosure enclosure : entry.getEnclosures()) {
+                                if (enclosure.getType() != null && enclosure.getType().startsWith("image")) {
+                                    imageUrl = enclosure.getUrl();
+                                    break;
+                                }
+                            }
+                        }
+                        // Fallback for media:content if not in enclosures (Rome handles some modules)
+                        // For simplicity in this step, we stick to enclosures which are standard in many feeds.
+                        // BBC/CNN often use media:content which might require the MediaEntryModule.
+                        // But let's try the basic enclosure first.
+                        
                         newsItems.add(new NewsItem(
                                 entry.getTitle(),
                                 entry.getLink(),
                                 entry.getPublishedDate(),
-                                description
+                                description,
+                                imageUrl
                         ));
                     }
                 }
@@ -93,7 +110,8 @@ public class NewsService {
                 "System Error: Failed to fetch news",
                 "#",
                 new java.util.Date(),
-                "Error details: " + e.toString() + " (" + feedUrlStr + ")"
+                "Error details: " + e.toString() + " (" + feedUrlStr + ")",
+                null
             ));
         }
         return newsItems;
@@ -124,6 +142,13 @@ public class NewsService {
             if (!h1.isEmpty()) {
                 title = h1.first().text();
             }
+            
+            // Extract Image (og:image)
+            String imageUrl = null;
+            Elements metaImage = doc.select("meta[property=og:image]");
+            if (!metaImage.isEmpty()) {
+                imageUrl = metaImage.first().attr("content");
+            }
 
             // Clean up for content extraction
             doc.select("script, style, nav, footer, .advert, .sidebar, .related, .comments").remove();
@@ -147,11 +172,11 @@ public class NewsService {
             
             if (content == null) content = "Content could not be scraped.";
 
-            return new NewsItem(title, url, new java.util.Date(), content);
+            return new NewsItem(title, url, new java.util.Date(), content, imageUrl);
 
         } catch (Exception e) {
             System.err.println("Error scraping NewsItem (" + url + "): " + e.getMessage());
-            return new NewsItem("Error Fetching: " + url, url, new java.util.Date(), "Failed to scrape: " + e.getMessage());
+            return new NewsItem("Error Fetching: " + url, url, new java.util.Date(), "Failed to scrape: " + e.getMessage(), null);
         }
     }
 

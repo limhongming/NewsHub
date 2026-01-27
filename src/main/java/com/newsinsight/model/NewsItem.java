@@ -6,5 +6,6 @@ public record NewsItem(
     String title,
     String link,
     Date published,
-    String summary
+    String summary,
+    String imageUrl
 ) {}

@@ -10,5 +10,6 @@ public record MergedNewsCluster(
     String impact_rating,
     String what_next,
     List<String> related_links,
-    String modelUsed
+    String modelUsed,
+    String imageUrl
 ) {}
