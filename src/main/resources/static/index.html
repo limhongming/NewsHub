@@ -276,9 +276,11 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-warning btn-sm me-auto" onclick="toggleRawData()">View Raw JSON</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     <a href="#" id="original-link" target="_blank" class="btn btn-outline-light">Open Source Website</a>
                 </div>
+                <div id="raw-data-container" class="w-100 p-3 bg-black text-warning font-monospace small d-none" style="max-height: 200px; overflow: auto; border-top: 1px solid #333;"></div>
             </div>
         </div>
     </div>
@@ -753,66 +755,77 @@
                                         else if (currentTab === 'cnn') loadCNNMerged(true); 
                                     }
                             
-                                    async function openAnalysisModal(title, url) {
-                                        const loader = document.getElementById('global-loader');
-                                        const modalElement = new bootstrap.Modal(document.getElementById('analysisModal'));
-                                        const titleEl = document.getElementById('modal-title');
-                                        const urgencyEl = document.getElementById('urgency-badge');
-                                        const scoreEl = document.getElementById('impact-score');
-                                        const summaryEl = document.getElementById('ai-summary');
-                                        const econEl = document.getElementById('ai-econ');
-                                        const worldEl = document.getElementById('ai-world');
-                                        const articleEl = document.getElementById('article-text');
-                                        const linkEl = document.getElementById('original-link');
-                                        titleEl.innerText = title; articleEl.innerText = "Fetching content..."; summaryEl.innerText = "Analyzing..."; econEl.innerText = "..."; worldEl.innerText = "..."; scoreEl.innerText = "-"; urgencyEl.className = "impact-badge bg-secondary"; urgencyEl.innerText = "PENDING"; linkEl.href = url;
-                                        loader.style.display = 'block';
-                                        try {
-                                            const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) });
-                                            
-                                            if (response.ok) {
-                                                const data = await response.json();
-                                                const ai = data.analysis;
-                                                summaryEl.innerText = ai.summary || "No summary provided."; 
-                                                econEl.innerText = ai.economic_impact || "N/A"; 
-                                                worldEl.innerText = ai.global_impact || "N/A"; 
-                                                scoreEl.innerText = ai.impact_rating || "?"; 
-                                                articleEl.innerText = data.full_text || "No text.";
-                                                const urgency = (ai.urgency || "Unknown").toString(); 
-                                                urgencyEl.innerText = urgency.toUpperCase(); 
-                                                urgencyEl.className = "impact-badge";
-                                                const urg = urgency.toLowerCase(); 
-                                                if (urg.includes('high') || urg.includes('critical')) {
-                                                    urgencyEl.classList.add('bg-danger', 'text-white');
-                                                } else if (urg.includes('medium')) {
-                                                    urgencyEl.classList.add('bg-warning', 'text-dark');
-                                                } else {
-                                                    urgencyEl.classList.add('bg-success', 'text-white');
-                                                }
-                                            } else {
-                                                // Try to parse error message from response
-                                                let errorMsg;
-                                                try {
-                                                    // Try to parse as JSON
-                                                    const errorData = await response.json();
-                                                    errorMsg = errorData.error || errorData.message || `Error ${response.status}: ${response.statusText}`;
-                                                } catch (parseError) {
-                                                    // If not JSON, try as text
-                                                    errorMsg = await response.text();
-                                                    if (!errorMsg) {
-                                                        errorMsg = `Error ${response.status}: ${response.statusText}`;
-                                                    }
-                                                }
-                                                articleEl.innerText = `Error: ${errorMsg}`;
-                                            }
-                                            modalElement.show();
-                                        } catch(e) { 
-                                            articleEl.innerText = "Connection Failed: " + e.message; 
-                                            modalElement.show(); 
-                                        } finally { 
-                                            loader.style.display = 'none'; 
-                                        }
-                                    }
-                            
+                                                                        function toggleRawData() {
+                                                                            const container = document.getElementById('raw-data-container');
+                                                                            container.classList.toggle('d-none');
+                                                                        }
+                                    
+                                                                        async function openAnalysisModal(title, url) {
+                                                                            const loader = document.getElementById('global-loader');
+                                                                            const modalElement = new bootstrap.Modal(document.getElementById('analysisModal'));
+                                                                            const rawContainer = document.getElementById('raw-data-container');
+                                                                            
+                                                                            // Reset UI
+                                                                            rawContainer.innerHTML = 'Loading raw data...';
+                                                                            rawContainer.classList.add('d-none');
+                                                                            
+                                                                            const titleEl = document.getElementById('modal-title');
+                                                                            const urgencyEl = document.getElementById('urgency-badge');      
+                                                                            const scoreEl = document.getElementById('impact-score');
+                                                                            const summaryEl = document.getElementById('ai-summary');
+                                                                            const econEl = document.getElementById('ai-econ');
+                                                                            const worldEl = document.getElementById('ai-world');
+                                                                            const articleEl = document.getElementById('article-text');       
+                                                                            const linkEl = document.getElementById('original-link');
+                                                                            titleEl.innerText = title; articleEl.innerText = "Fetching content..."; summaryEl.innerText = "Analyzing..."; econEl.innerText = "..."; worldEl.innerText = "..."; scoreEl.innerText = "-"; urgencyEl.className = "impact-badge bg-secondary"; urgencyEl.innerText = "PENDING"; linkEl.href = url;
+                                                                            loader.style.display = 'block';
+                                                                            try {
+                                                                                const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) });
+                                                                                
+                                                                                // Capture raw text first for debugging
+                                                                                const rawText = await response.text();
+                                                                                rawContainer.innerText = rawText; // Show exactly what server sent
+                                                                                
+                                                                                let data;
+                                                                                try {
+                                                                                    data = JSON.parse(rawText);
+                                                                                    // Pretty print for readability
+                                                                                    rawContainer.innerText = JSON.stringify(data, null, 2);
+                                                                                } catch (e) {
+                                                                                    console.error("Failed to parse response JSON", e);
+                                                                                    throw new Error("Server returned non-JSON response: " + rawText.substring(0, 100) + "...");
+                                                                                }
+                                    
+                                                                                if (response.ok) {
+                                                                                    const ai = data.analysis;
+                                                                                    summaryEl.innerText = ai.summary || "No summary provided."; 
+                                                                                    econEl.innerText = ai.economic_impact || "N/A"; 
+                                                                                    worldEl.innerText = ai.global_impact || "N/A"; 
+                                                                                    scoreEl.innerText = ai.impact_rating || "?"; 
+                                                                                    articleEl.innerText = data.full_text || "No text.";      
+                                                                                    const urgency = (ai.urgency || "Unknown").toString();    
+                                                                                    urgencyEl.innerText = urgency.toUpperCase(); 
+                                                                                    urgencyEl.className = "impact-badge";
+                                                                                    const urg = urgency.toLowerCase(); 
+                                                                                    if (urg.includes('high') || urg.includes('critical')) {  
+                                                                                        urgencyEl.classList.add('bg-danger', 'text-white');  
+                                                                                    } else if (urg.includes('medium')) {
+                                                                                        urgencyEl.classList.add('bg-warning', 'text-dark');  
+                                                                                    } else {
+                                                                                        urgencyEl.classList.add('bg-success', 'text-white'); 
+                                                                                    }
+                                                                                } else {
+                                                                                    let errorMsg = data.error || data.message || `Error ${response.status}: ${response.statusText}`;
+                                                                                    articleEl.innerText = `Error: ${errorMsg}`;
+                                                                                }
+                                                                                modalElement.show();
+                                                                            } catch(e) { 
+                                                                                articleEl.innerText = "Connection Failed: " + e.message;     
+                                                                                modalElement.show(); 
+                                                                            } finally { 
+                                                                                loader.style.display = 'none'; 
+                                                                            }
+                                                                        }                            
                                     async function loadModels() {
                                         try {
                                             const response = await fetch('/api/models');
