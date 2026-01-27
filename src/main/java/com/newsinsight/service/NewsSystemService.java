@@ -39,7 +39,7 @@ public class NewsSystemService {
     // Official Gemini models - production-ready, stable models only
     // Ordered by cost/performance
     private static final List<String> FALLBACK_MODELS = List.of(
-        // Stable, high-performance models (Free Tier Friendly)
+        "gemini-2.5-flash-lite",      // User Preferred Latest
         "gemini-1.5-flash",           // Current standard for speed/cost
         "gemini-1.5-pro",             // High intelligence model
         "gemini-1.0-pro"              // Legacy stable model
@@ -53,14 +53,16 @@ public class NewsSystemService {
     
     private static Map<String, Integer> createModelPriorityMap() {
         Map<String, Integer> map = new HashMap<>();
-        map.put("gemini-1.5-flash", 1);
-        map.put("gemini-1.5-pro", 2);
-        map.put("gemini-1.0-pro", 3);
+        map.put("gemini-2.5-flash-lite", 1);
+        map.put("gemini-1.5-flash", 2);
+        map.put("gemini-1.5-pro", 3);
+        map.put("gemini-1.0-pro", 4);
         return Collections.unmodifiableMap(map);
     }
     
     private static Map<String, String> createModelVersionsMap() {
         Map<String, String> map = new HashMap<>();
+        map.put("gemini-2.5-flash-lite", "2.5");
         map.put("gemini-1.5-flash", "1.5");
         map.put("gemini-1.5-pro", "1.5");
         map.put("gemini-1.0-pro", "1.0");
