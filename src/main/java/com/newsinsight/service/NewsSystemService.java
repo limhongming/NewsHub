@@ -313,6 +313,12 @@ public class NewsSystemService {
             1. TRANSLATION: Translate \"topic\", \"summary\", \"economic_impact\", \"global_impact\", and \"what_next\" into %s.
             2. ANALYSIS: Provide synthesized summary, economic impact, global impact, rating (1-10), and prediction. 
             
+            STRICT RATING (1-10): 
+            - 8-10: RESERVED for events with PROVEN, IMMEDIATE, and MASSIVE GLOBAL economic/geopolitical consequences (e.g., world wars, pandemics, global market crash).
+            - 5-7: National significance or major industry impact.
+            - 1-4: Regional news, local politics, or minor updates.
+            - DO NOT OVER-HYPE. Be conservative.
+
             Return ONLY JSON:
             {\"topic\":\"...\",\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":\"8\",\"what_next\":\"...\"}
             """, title, snippet, lang.equals("Chinese") ? "Simplified Chinese (zh-CN)" : lang);
@@ -329,86 +335,7 @@ public class NewsSystemService {
             return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error", null);
         }
     }
-
-    public List<MergedNewsCluster> processAndClusterNews(List<NewsItem> items, String language, boolean shouldCluster, String preferredModel) {
-        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
-             return List.of(new MergedNewsCluster("API Key Missing", "Please configure gemini.api.key", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "None", null));
-        }
-        List<NewsItem> validItems = items.stream()
-                .filter(item -> !item.title().startsWith("System Error") && !item.title().startsWith("No News Found"))
-                .collect(Collectors.toList());
-        if (validItems.isEmpty()) return List.of(new MergedNewsCluster("No Content", "No valid articles found.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "None", null));
-        
-        // Check if we should use sequential processing (safer for rate limits)
-        if (shouldUseSequentialProcessing(validItems.size())) {
-            return processArticlesSequentially(validItems, language, preferredModel);
-        } else {
-            return processArticlesInBatch(validItems, language, preferredModel);
-        }
-    }
-    
-    private boolean shouldUseSequentialProcessing(int itemCount) {
-        // Use sequential processing if we have more than 3 articles or if we've hit rate limits recently
-        return itemCount > 3 || (System.currentTimeMillis() - lastRateLimitTime < RATE_LIMIT_COOLDOWN_MS * 2);
-    }
-    
-    private List<MergedNewsCluster> processArticlesSequentially(List<NewsItem> items, String language, String preferredModel) {
-        List<MergedNewsCluster> results = new ArrayList<>();
-        String workingModel = preferredModel; // Track which model works
-        
-        System.out.println("DEBUG: Processing " + items.size() + " articles sequentially to avoid rate limits");
-        
-        for (int i = 0; i < items.size(); i++) {
-            NewsItem item = items.get(i);
-            
-            try {
-                // Analyze each article individually
-                MergedNewsCluster analysis = analyzeSingleArticle(item, language, workingModel);
-                
-                // If we got a successful analysis, use the same model for next articles
-                if (analysis != null && !analysis.topic().contains("Error") && analysis.modelUsed() != null) {
-                    workingModel = analysis.modelUsed(); // Stick with the working model
-                    results.add(analysis);
-                    System.out.println("DEBUG: Successfully analyzed article " + (i + 1) + "/" + items.size() + " with model: " + workingModel);
-                } else {
-                    // If analysis failed, try with a different model next time
-                    workingModel = null;
-                    results.add(analysis);
-                }
-                
-                // Add delay between articles to respect rate limits (4-6 seconds for 15 RPM limit)
-                if (i < items.size() - 1) {
-                    long delay = 4000 + (long)(Math.random() * 2000); // 4-6 seconds (15 RPM) 
-                    System.out.println("DEBUG: Waiting " + delay + "ms before next article...");
-                    try {
-                        Thread.sleep(delay);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException("Request interrupted during article delay");
-                    }
-                }
-                
-            } catch (Exception e) {
-                System.err.println("ERROR: Failed to analyze article " + (i + 1) + ": " + e.getMessage());
-                results.add(new MergedNewsCluster("Analysis Error", "Failed: " + e.getMessage(), "N/A", "N/A", "0", "N/A", 
-                    List.of(item.link()), "Error", null));
-                
-                // If we hit rate limit, increase delay for next attempt
-                if (e.getMessage() != null && e.getMessage().contains("Rate limit")) {
-                    System.out.println("WARN: Rate limit hit, increasing delay...");
-                    try {
-                        Thread.sleep(10000); // 10 second delay after rate limit
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            }
-        }
-        
-        // Group similar articles (basic clustering)
-        return groupSimilarArticles(results);
-    }
-    
+// ...
     private List<MergedNewsCluster> processArticlesInBatch(List<NewsItem> items, String language, String preferredModel) {
         // Original batch processing for small numbers of articles
         StringBuilder itemsText = new StringBuilder();
@@ -419,21 +346,20 @@ public class NewsSystemService {
         String prompt = String.format("""
                 Expert Analyst Task: Group articles about SAME event. Synthesize unified summary. LATEST INFO FIRST.
                 2. TRANSLATE: \"topic\", \"summary\", \"economic_impact\", \"global_impact\", \"what_next\" into %s.
+                
+                STRICT RATING (1-10): 
+                - 8-10: RESERVED for events with PROVEN, IMMEDIATE, and MASSIVE GLOBAL economic/geopolitical consequences.
+                - 5-7: National significance.
+                - 1-4: Regional/Local news.
+                - DO NOT OVER-HYPE.
+                
                 Input:
                 %s
                 Output Schema: [{\"topic\":\"...\",\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":\"8\",\"what_next\":\"...\",\"related_links\":[\"url1\"]}]
                 """, language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, fullText);
 
         try {
-            ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
-            List<MergedNewsCluster> clusters = parseClusterJsonFromAI(result.text());
-            return clusters.stream()
-                .map(c -> new MergedNewsCluster(c.topic(), c.summary(), c.economic_impact(), c.global_impact(), c.impact_rating(), c.what_next(), c.related_links(), result.model(), null))
-                .collect(Collectors.toList());
-        } catch (Exception e) {
-            String msg = (e instanceof HttpClientErrorException) ? ((HttpClientErrorException) e).getResponseBodyAsString() : e.getMessage();
-            return List.of(new MergedNewsCluster("System Error", "Analysis Failed: " + msg, "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error", null));
-        }
+// ...
     }
     
     private MergedNewsCluster analyzeSingleArticle(NewsItem item, String language, String preferredModel) {
@@ -446,6 +372,12 @@ public class NewsSystemService {
             1. TRANSLATION: Translate \"topic\", \"summary\", \"economic_impact\", \"global_impact\", and \"what_next\" into %s.
             2. ANALYSIS: Provide synthesized summary, economic impact, global impact, rating (1-10), and prediction.
             
+            STRICT RATING (1-10): 
+            - 8-10: RESERVED for events with PROVEN, IMMEDIATE, and MASSIVE GLOBAL economic/geopolitical consequences (e.g., world wars, pandemics, global market crash).
+            - 5-7: National significance or major industry impact.
+            - 1-4: Regional news, local politics, or minor updates.
+            - DO NOT OVER-HYPE. Be conservative.
+
             Return ONLY JSON:
             {\"topic\":\"...\",\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":\"8\",\"what_next\":\"...\"}
             """, item.title(), item.summary(), item.link(), language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language);
