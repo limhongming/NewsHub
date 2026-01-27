@@ -272,7 +272,7 @@ public class NewsSystemService {
         if (modelName.contains("1.0")) return "1.0";
         
         // Try to extract version using regex pattern for future versions
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("gemini-(\\d+\\.{\\d+})");
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("gemini-(\\d+\\.{\\\d+})");
         java.util.regex.Matcher matcher = pattern.matcher(modelName);
         if (matcher.find()) {
             return matcher.group(1);
@@ -304,39 +304,40 @@ public class NewsSystemService {
         } catch (Exception e) { return new AnalysisResponse.AnalysisData("Analysis failed: " + e.getMessage()); }
     }
 
-        public MergedNewsCluster analyzeSnippet(String title, String snippet, String lang, String preferredModel) {
-            String prompt = String.format("""
-                Analyze this news snippet. FOCUS ON LATEST INFORMATION.
-                Title: %s
-                Content: %s
-                
-                1. TRANSLATION: Translate \"topic\", \"summary\", \"economic_impact\", \"global_impact\", and \"what_next\" into %s.
-                2. ANALYSIS: Provide synthesized summary, economic impact, global impact, rating (1-10), and prediction.
-                
-                Return ONLY JSON:
-                {\"topic\":\"...\",\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":\"8\",\"what_next\":\"...\"}
-                """, title, snippet, lang.equals("Chinese") ? "Simplified Chinese (zh-CN)" : lang);
-    
-            try {
-                ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
-                Map<String, Object> map = objectMapper.readValue(result.text().replace("```json", "").replace("```", "").trim(), new TypeReference<Map<String, Object>>(){});
-                return new MergedNewsCluster(
-                    (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
-                    (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
-                    Collections.emptyList(), result.model(), null
-                );
-            } catch (Exception e) {
-                return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error", null);
-            }
+    public MergedNewsCluster analyzeSnippet(String title, String snippet, String lang, String preferredModel) {
+        String prompt = String.format("""
+            Analyze this news snippet. FOCUS ON LATEST INFORMATION.
+            Title: %s
+            Content: %s
+            
+            1. TRANSLATION: Translate \"topic\", \"summary\", \"economic_impact\", \"global_impact\", and \"what_next\" into %s.
+            2. ANALYSIS: Provide synthesized summary, economic impact, global impact, rating (1-10), and prediction. 
+            
+            Return ONLY JSON:
+            {\"topic\":\"...\",\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":\"8\",\"what_next\":\"...\"}
+            """, title, snippet, lang.equals("Chinese") ? "Simplified Chinese (zh-CN)" : lang);
+
+        try {
+            ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
+            Map<String, Object> map = objectMapper.readValue(result.text().replace("```json", "").replace("```", "").trim(), new TypeReference<Map<String, Object>>(){});
+            return new MergedNewsCluster(
+                (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
+                (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
+                Collections.emptyList(), result.model(), null
+            );
+        } catch (Exception e) {
+            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error", null);
         }
+    }
+
     public List<MergedNewsCluster> processAndClusterNews(List<NewsItem> items, String language, boolean shouldCluster, String preferredModel) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
-             return List.of(new MergedNewsCluster("API Key Missing", "Please configure gemini.api.key", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "None"));
+             return List.of(new MergedNewsCluster("API Key Missing", "Please configure gemini.api.key", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "None", null));
         }
         List<NewsItem> validItems = items.stream()
                 .filter(item -> !item.title().startsWith("System Error") && !item.title().startsWith("No News Found"))
                 .collect(Collectors.toList());
-        if (validItems.isEmpty()) return List.of(new MergedNewsCluster("No Content", "No valid articles found.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "None"));
+        if (validItems.isEmpty()) return List.of(new MergedNewsCluster("No Content", "No valid articles found.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "None", null));
         
         // Check if we should use sequential processing (safer for rate limits)
         if (shouldUseSequentialProcessing(validItems.size())) {
@@ -390,7 +391,7 @@ public class NewsSystemService {
             } catch (Exception e) {
                 System.err.println("ERROR: Failed to analyze article " + (i + 1) + ": " + e.getMessage());
                 results.add(new MergedNewsCluster("Analysis Error", "Failed: " + e.getMessage(), "N/A", "N/A", "0", "N/A", 
-                    List.of(item.link()), "Error"));
+                    List.of(item.link()), "Error", null));
                 
                 // If we hit rate limit, increase delay for next attempt
                 if (e.getMessage() != null && e.getMessage().contains("Rate limit")) {
@@ -601,7 +602,7 @@ public class NewsSystemService {
                     String urlStr = String.format(API_URL_TEMPLATE, model.trim(), apiKey);
                     System.out.println("DEBUG: FINAL API URL: " + urlStr.replace(apiKey, "API_KEY_HIDDEN"));
                     
-                    // USE URI OBJECT TO PREVENT DOUBLE-ENCODING OF THE COLON (:)
+                    // USE URI OBJECT TO PREVENT DOUBLE-ENCODING OF THE COLON (:) 
                     URI uri = URI.create(urlStr);
                     
                     // Prepare Gemini request (re-using existing structure logic)
@@ -784,7 +785,7 @@ public class NewsSystemService {
         } catch (Exception e) { 
             System.err.println("JSON Parse Error: " + e.getMessage() + "\nInput: " + rawText);
             return new AnalysisResponse.AnalysisData("Failed to parse response."); 
-        }
+        } 
     }
 
     private String extractTextFromResponse(Map<String, Object> responseBody) {
