@@ -797,22 +797,24 @@
                                                                             try {
                                                                                 const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) });
                                                                                 
-                                                                                // Capture raw text first for debugging
-                                                                                const rawText = await response.text();
-                                                                                rawContainer.innerText = rawText; // Show exactly what server sent
-                                                                                
-                                                                                let data;
-                                                                                try {
-                                                                                    data = JSON.parse(rawText);
-                                                                                    // Pretty print for readability
-                                                                                    rawContainer.innerText = JSON.stringify(data, null, 2);
-                                                                                } catch (e) {
-                                                                                    console.error("Failed to parse response JSON", e);
-                                                                                    throw new Error("Server returned non-JSON response: " + rawText.substring(0, 100) + "...");
-                                                                                }
-                                    
-                                                                                if (response.ok) {
-                                                                                    const ai = data.analysis;
+                                                                                                                                // Capture raw text first for debugging
+                                                                                                                                const rawText = await response.text();
+                                                                                                                                
+                                                                                                                                let data;
+                                                                                                                                let imgDebug = "No Image URL found in response.";
+                                                                                                                                try {
+                                                                                                                                    data = JSON.parse(rawText);
+                                                                                                                                    if (data.image_url) {
+                                                                                                                                        imgDebug = "✅ Image URL Found: " + data.image_url;
+                                                                                                                                    }
+                                                                                                                                    // Pretty print for readability
+                                                                                                                                    rawContainer.innerText = imgDebug + "\n\n" + JSON.stringify(data, null, 2);
+                                                                                                                                } catch (e) {
+                                                                                                                                    console.error("Failed to parse response JSON", e);
+                                                                                                                                    rawContainer.innerText = "Non-JSON Response:\n" + rawText;
+                                                                                                                                }
+                                                                                                                    
+                                                                                                                                if (response.ok) {                                                                                    const ai = data.analysis;
                                                                                     summaryEl.innerText = ai.summary || "No summary provided."; 
                                                                                     econEl.innerText = ai.economic_impact || "N/A"; 
                                                                                     worldEl.innerText = ai.global_impact || "N/A"; 

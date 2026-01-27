@@ -9,6 +9,12 @@ public class AnalysisResponse {
     
     @JsonProperty("full_text")
     private String fullText;
+    
+    @JsonProperty("image_url")
+    private String imageUrl;
+    
+    @JsonProperty("debug_info")
+    private String debugInfo;
 
     public AnalysisResponse() {
     }
@@ -24,6 +30,12 @@ public class AnalysisResponse {
     
     public String getFullText() { return fullText; }
     public void setFullText(String fullText) { this.fullText = fullText; }
+    
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    
+    public String getDebugInfo() { return debugInfo; }
+    public void setDebugInfo(String debugInfo) { this.debugInfo = debugInfo; }
 
     public static class AnalysisData {
         @JsonProperty("summary")

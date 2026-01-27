@@ -111,24 +111,17 @@ public class NewsController {
         try {
             // 2. Scrape
             System.out.println("INFO: Starting article analysis for URL: " + request.url());
-            String content;
+            NewsItem scrapedItem;
             try {
-                content = newsService.scrapeArticleContent(request.url());
+                scrapedItem = newsService.scrapeNewsItem(request.url());
             } catch (Exception scrapeException) {
                 System.err.println("ERROR: Failed to scrape article content: " + scrapeException.getMessage());
-                // Differentiate between scraping failures and other errors
-                String errorMsg = scrapeException.getMessage();
-                if (errorMsg.contains("blocking access") || errorMsg.contains("temporarily unavailable")) {
-                    return ResponseEntity.status(503).body("Service Unavailable: " + errorMsg);
-                } else if (errorMsg.contains("content not found") || errorMsg.contains("too short")) {
-                    return ResponseEntity.status(404).body("Not Found: " + errorMsg);
-                } else {
-                    return ResponseEntity.status(500).body("Scraping Failed: " + errorMsg);
-                }
+                return ResponseEntity.status(500).body("Scraping Failed: " + scrapeException.getMessage());
             }
             
-            if (content == null || content.isEmpty()) {
-                return ResponseEntity.badRequest().body("Could not scrape content from URL.");
+            String content = scrapedItem.summary();
+            if (content == null || content.isEmpty() || content.startsWith("Content could not")) {
+                return ResponseEntity.badRequest().body("Could not scrape content form URL.");
             }
 
             System.out.println("INFO: Successfully scraped " + content.length() + " characters, now analyzing...");
@@ -139,23 +132,24 @@ public class NewsController {
                 analysisData = newsSystemService.analyzeText(content);
             } catch (Exception analysisException) {
                 System.err.println("ERROR: Failed to analyze article content: " + analysisException.getMessage());
-                // If analysis fails, still return the scraped content with a note
                 AnalysisResponse errorResponse = new AnalysisResponse(
                     new AnalysisResponse.AnalysisData("Analysis Failed: " + analysisException.getMessage()),
                     content
                 );
-                // We don't cache error responses to allow retry later
+                errorResponse.setDebugInfo("Scraping Source: " + request.url());
                 return ResponseEntity.ok(errorResponse);
             }
             
             // 4. Cache the successful analysis
             AnalysisResponse successResponse = new AnalysisResponse(analysisData, content);
+            successResponse.setImageUrl(scrapedItem.imageUrl());
+            successResponse.setDebugInfo("Scraped from: " + request.url() + " | Title: " + scrapedItem.title());
+            
             try {
                 newsCacheService.cacheArticleAnalysis(request.url(), successResponse);
                 System.out.println("INFO: Cached analysis for URL: " + request.url());
             } catch (Exception cacheException) {
                 System.err.println("WARN: Failed to cache analysis for URL " + request.url() + ": " + cacheException.getMessage());
-                // Continue anyway, caching is not critical
             }
             
             // 5. Return Combined Response
