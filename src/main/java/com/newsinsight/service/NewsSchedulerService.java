@@ -157,9 +157,9 @@ public class NewsSchedulerService {
                 newList.addAll(currentCache);
             }
             
-            // Limit list size to prevent infinite growth (e.g., keep last 50)
-            if (newList.size() > 50) {
-                newList = newList.subList(0, 50);
+            // Limit list size to prevent infinite growth (keep last 500)
+            if (newList.size() > 500) {
+                newList = newList.subList(0, 500);
             }
 
             System.out.println("SCHEDULER: Analysis success for: " + candidate.title() + ". Saving " + newList.size() + " items to DB...");
