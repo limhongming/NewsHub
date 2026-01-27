@@ -136,6 +136,18 @@ public class NewsSystemService {
         public String model() { return model; }
     }
 
+    public String testRawGemini(String prompt, String preferredModel) {
+        try {
+            ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
+            // We want the RAW text result from our internal wrapper, 
+            // but callGeminiApiWithFallback returns extracted text. 
+            // For true debug, we'll wrap the extracted text in a simple JSON to confirm success.
+            return "{\"status\": \"SUCCESS\", \"model_used\": \"" + result.model() + "\", \"extracted_text\": \"" + result.text().replace("\"", "\\\"").replace("\n", "\\n") + "\"}";
+        } catch (Exception e) {
+            return "{\"status\": \"ERROR\", \"message\": \"" + e.getMessage().replace("\"", "\\\"") + "\"}";
+        }
+    }
+
     public List<GeminiModel> listAvailableModels() {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
             return Collections.emptyList();
