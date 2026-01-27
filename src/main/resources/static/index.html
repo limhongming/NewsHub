@@ -28,11 +28,18 @@
             transition: all 0.2s; 
             height: 100%;
             border: 1px solid #333;
+            overflow: hidden; /* For image corners */
         }
         .news-card:hover { 
             transform: translateY(-5px); 
             box-shadow: 0 4px 15px rgba(255, 153, 0, 0.2); 
             border: 1px solid #ff9900;
+        }
+        .card-img-top {
+            height: 180px;
+            object-fit: cover;
+            border-bottom: 1px solid #333;
+            background-color: #111;
         }
         .card-title { font-weight: bold; color: #ffffff; }
         .card-subtitle { color: #888 !important; }
@@ -664,6 +671,9 @@
             card.dataset.normalizedLink = normalizeUrl(item.link);
             card.dataset.originalUrl = item.link;
             
+            const imageUrl = isAnalyzed ? (analysis.imageUrl || item.imageUrl) : item.imageUrl;
+            const imgHtml = imageUrl ? `<img src="${imageUrl}" class="card-img-top" alt="news image" onerror="this.style.display='none'">` : '';
+
             if (isAnalyzed && analysis) {
                 // Card for analyzed article (shows analysis)
                 const rating = analysis.impact_rating || 'N/A';
@@ -674,6 +684,7 @@
                 
                 card.innerHTML = `
                     <div class="card news-card">
+                        ${imgHtml}
                         <div class="card-body d-flex flex-column">
                             <h5 class="card-title text-light">${item.title}</h5>
                             <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>
@@ -704,6 +715,7 @@
                 // Card for unanalyzed article (shows loading placeholder)
                 card.innerHTML = `
                     <div class="card news-card">
+                        ${imgHtml}
                         <div class="card-body d-flex flex-column">
                             <h5 class="card-title text-light">${item.title}</h5>
                             <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>

@@ -272,7 +272,7 @@ public class NewsSystemService {
         if (modelName.contains("1.0")) return "1.0";
         
         // Try to extract version using regex pattern for future versions
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("gemini-(\\d+\\.{\\\d+})");
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("gemini-([0-9.]+)");
         java.util.regex.Matcher matcher = pattern.matcher(modelName);
         if (matcher.find()) {
             return matcher.group(1);
