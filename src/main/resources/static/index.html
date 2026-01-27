@@ -36,7 +36,10 @@
         }
         .card-title { font-weight: bold; color: #ffffff; }
         .card-subtitle { color: #888 !important; }
-        .card-text { color: #ccc; }
+        .card-text { color: #ccc; text-align: justify; }
+        
+        /* Justify AI Summary text */
+        .news-card p { text-align: justify; }
         
         /* Buttons */
         .btn-primary, .btn-warning { 
@@ -231,7 +234,7 @@
             </div>
 
             <!-- BBC SUMMARIZED PANE (Analyzed articles) -->
-            <div class="tab-pane fade" id="bbc-summarized-pane" role="tabpanel" aria-labelledby="bbc-summarized-tab">
+            <div class="tab-pane fade" id="bbc-summarized-pane" role="tabpanel" aria-labelledby="bbc-summarized-tab" text-align="justify-content">
                 <div id="bbc-summarized-status-bar" class="d-none"></div>
                 <div class="row g-4" id="bbc-summarized-container"></div>
             </div>
