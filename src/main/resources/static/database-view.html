@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NewsHub - Database View</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: monospace; }
+        .table-dark { background-color: #1e1e1e; }
+        .json-cell { white-space: pre-wrap; font-size: 0.8rem; color: #a5d6a7; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Database Cache Inspector</h1>
+        <p class="text-muted">Viewing raw cached clusters from: <code>news_cache_clusters</code> (via /api/debug/clusters)</p>
+        <button class="btn btn-outline-primary mb-3" onclick="loadData()">Refresh Data</button>
+        
+        <div class="table-responsive">
+            <table class="table table-dark table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Topic</th>
+                        <th>Summary</th>
+                        <th>Impact</th>
+                        <th>Links</th>
+                        <th>Model</th>
+                    </tr>
+                </thead>
+                <tbody id="data-body">
+                    <tr><td colspan="6" class="text-center">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function loadData() {
+            const tbody = document.getElementById('data-body');
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center">Loading...</td></tr>';
+            
+            try {
+                const response = await fetch('/api/debug/clusters');
+                const data = await response.json();
+                
+                tbody.innerHTML = '';
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No data found in cache.</td></tr>';
+                    return;
+                }
+                
+                data.forEach((item, index) => {
+                    const row = `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${item.topic}</td>
+                            <td class="json-cell" style="max-width: 400px;">${item.summary}</td>
+                            <td>
+                                <div class="badge bg-secondary">Rating: ${item.impact_rating}</div>
+                                <div class="small text-info mt-1">Econ: ${item.economic_impact}</div>
+                            </td>
+                            <td class="json-cell">${(item.related_links || []).join('\n')}</td>
+                            <td><span class="badge bg-dark border">${item.modelUsed}</span></td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Error: ${e.message}</td></tr>`;
+            }
+        }
+        
+        // Auto load
+        window.onload = loadData;
+    </script>
+</body>
+</html>

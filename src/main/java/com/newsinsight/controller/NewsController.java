@@ -162,6 +162,13 @@ public class NewsController {
         }
     }
 
+    @GetMapping("/debug/clusters")
+    public List<MergedNewsCluster> getAllCachedClusters() {
+        // Retrieve the main BBC list as a representative sample of the DB state
+        List<MergedNewsCluster> clusters = newsCacheService.getCachedNews("bbc", "English", "gemini-1.5-flash");
+        return clusters != null ? clusters : List.of();
+    }
+
     @PostMapping("/news/import")
     public ResponseEntity<?> manualImport(@RequestBody Map<String, List<String>> payload) {
         List<String> urls = payload.get("urls");
