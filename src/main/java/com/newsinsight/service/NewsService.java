@@ -81,11 +81,36 @@ public class NewsService {
                         
                         // Extract Image URL
                         String imageUrl = null;
+                        
+                        // 1. Try standard enclosures
                         if (entry.getEnclosures() != null && !entry.getEnclosures().isEmpty()) {
                             for (com.rometools.rome.feed.synd.SyndEnclosure enclosure : entry.getEnclosures()) {
                                 if (enclosure.getType() != null && enclosure.getType().startsWith("image")) {
                                     imageUrl = enclosure.getUrl();
                                     break;
+                                }
+                            }
+                        }
+                        
+                        // 2. Try media:thumbnail (BBC specific)
+                        if (imageUrl == null && entry.getForeignMarkup() != null) {
+                            for (org.jdom2.Element element : entry.getForeignMarkup()) {
+                                if ("thumbnail".equals(element.getName()) && "http://search.yahoo.com/mrss/".equals(element.getNamespace().getURI())) {
+                                    imageUrl = element.getAttributeValue("url");
+                                    if (imageUrl != null) break;
+                                }
+                            }
+                        }
+                        
+                        // 3. Try media:content (CNN specific)
+                        if (imageUrl == null && entry.getForeignMarkup() != null) {
+                            for (org.jdom2.Element element : entry.getForeignMarkup()) {
+                                if ("content".equals(element.getName()) && "http://search.yahoo.com/mrss/".equals(element.getNamespace().getURI())) {
+                                    String type = element.getAttributeValue("type");
+                                    if (type != null && type.startsWith("image")) {
+                                        imageUrl = element.getAttributeValue("url");
+                                        if (imageUrl != null) break;
+                                    }
                                 }
                             }
                         }
