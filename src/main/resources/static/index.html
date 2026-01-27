@@ -605,6 +605,15 @@
                 
                 // 3. Render Summarized
                 if (summarizedClusters && summarizedClusters.length > 0) {
+                     // Sort summarized articles by the date of their first related link if available
+                     summarizedClusters.sort((a, b) => {
+                         const itemA = a.related_links && a.related_links.length > 0 ? itemMap.get(normalizeUrl(a.related_links[0])) : null;
+                         const itemB = b.related_links && b.related_links.length > 0 ? itemMap.get(normalizeUrl(b.related_links[0])) : null;
+                         const dateA = itemA ? new Date(itemA.published) : new Date(0);
+                         const dateB = itemB ? new Date(itemB.published) : new Date(0);
+                         return dateB - dateA;
+                     });
+
                      summarizedClusters.forEach(cluster => {
                          // Skip error clusters if you want, or show them
                          if (cluster.topic && cluster.topic.includes('Error')) return;
@@ -645,6 +654,9 @@
                 
                 const newItems = (rawItems || []).filter(item => !summarizedLinks.has(normalizeUrl(item.link)));
                 
+                // Sort new items by date descending
+                newItems.sort((a, b) => new Date(b.published) - new Date(a.published));
+
                 if (newItems.length > 0) {
                      newItems.forEach(item => {
                          const card = createArticleCard(item, null, false);
