@@ -35,6 +35,9 @@ public class NewsSystemService {
 
     @Value("${gemini.api.key}")
     private String apiKey;
+    
+    @Value("${deepseek.api.key:}") // Optional
+    private String deepSeekApiKey;
 
     // Official Gemini models - production-ready, stable models only
     // Ordered by cost/performance
@@ -42,7 +45,9 @@ public class NewsSystemService {
         "gemini-2.5-flash-lite",      // User Preferred Latest
         "gemini-1.5-flash",           // Current standard for speed/cost
         "gemini-1.5-pro",             // High intelligence model
-        "gemini-1.0-pro"              // Legacy stable model
+        "gemini-1.0-pro",             // Legacy stable model
+        "deepseek-chat",              // DeepSeek V3
+        "deepseek-reasoner"           // DeepSeek R1
     );
     
     // Model cost/priority mapping (lower number = higher priority for cost savings)
@@ -57,6 +62,8 @@ public class NewsSystemService {
         map.put("gemini-1.5-flash", 2);
         map.put("gemini-1.5-pro", 3);
         map.put("gemini-1.0-pro", 4);
+        map.put("deepseek-chat", 5);
+        map.put("deepseek-reasoner", 6);
         return Collections.unmodifiableMap(map);
     }
     
@@ -66,18 +73,22 @@ public class NewsSystemService {
         map.put("gemini-1.5-flash", "1.5");
         map.put("gemini-1.5-pro", "1.5");
         map.put("gemini-1.0-pro", "1.0");
+        map.put("deepseek-chat", "V3");
+        map.put("deepseek-reasoner", "R1");
         return Collections.unmodifiableMap(map);
     }
     
-    // Official model patterns
+    // Official model patterns - SIMPLIFIED REGEX TO AVOID ESCAPE ISSUES
     private static final List<String> OFFICIAL_MODEL_PATTERNS = List.of(
-        "gemini-[0-9]+[.][0-9]+-flash(-[0-9]+)?",
-        "gemini-[0-9]+[.][0-9]+-pro(-[0-9]+)?",
-        "gemini-[0-9]+[.][0-9]+-pro-vision(-[0-9]+)?"
+        "gemini-[0-9.]+-flash(-[0-9]+)?",
+        "gemini-[0-9.]+-pro(-[0-9]+)?",
+        "gemini-[0-9.]+-pro-vision(-[0-9]+)?",
+        "deepseek-.*"
     );
 
     private static final String API_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s";
     private static final String MODELS_API_URL = "https://generativelanguage.googleapis.com/v1beta/models?key=%s";
+    private static final String DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
 
     private final RestTemplate restTemplate;
     private final RestTemplate healthCheckRestTemplate;
@@ -139,9 +150,6 @@ public class NewsSystemService {
     public String testRawGemini(String prompt, String preferredModel) {
         try {
             ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
-            // We want the RAW text result from our internal wrapper, 
-            // but callGeminiApiWithFallback returns extracted text. 
-            // For true debug, we'll wrap the extracted text in a simple JSON to confirm success.
             return "{\"status\": \"SUCCESS\", \"model_used\": \"" + result.model() + "\", \"extracted_text\": \"" + result.text().replace("\"", "\\\"").replace("\n", "\\n") + "\"}";
         } catch (Exception e) {
             return "{\"status\": \"ERROR\", \"message\": \"" + e.getMessage().replace("\"", "\\\"") + "\"}";
@@ -218,7 +226,7 @@ public class NewsSystemService {
             }
         } catch (Exception e) { 
             e.printStackTrace(); 
-        }
+        } 
         
         // Fallback: return our predefined official models
         List<GeminiModel> fallbackModels = new ArrayList<>();
@@ -240,10 +248,12 @@ public class NewsSystemService {
         if (modelName.contains("flash-lite")) return "Gemini Flash Lite v" + version;
         if (modelName.contains("flash")) return "Gemini Flash v" + version;
         if (modelName.contains("pro")) return "Gemini Pro v" + version;
+        if (modelName.contains("deepseek")) return "DeepSeek " + version;
         return "Gemini Model v" + version;
     }
     
     private String getDescriptionForModel(String modelName) {
+        if (modelName.contains("deepseek")) return "DeepSeek AI Model";
         String version = MODEL_VERSIONS.getOrDefault(modelName, extractVersionFromName(modelName));
         if (modelName.contains("3.0")) return "Next generation (v" + version + ") with advanced capabilities";
         if (modelName.contains("2.5")) return "Latest generation (v" + version + ") with improved capabilities";
@@ -262,7 +272,7 @@ public class NewsSystemService {
         if (modelName.contains("1.0")) return "1.0";
         
         // Try to extract version using regex pattern for future versions
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("gemini-([0-9]+[.][0-9]+)");
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("gemini-(\\d+\\.{\\d+})");
         java.util.regex.Matcher matcher = pattern.matcher(modelName);
         if (matcher.find()) {
             return matcher.group(1);
@@ -539,17 +549,6 @@ public class NewsSystemService {
         }
         
         try {
-            List<Map<String, String>> safetySettings = List.of(
-                Map.of("category", "HARM_CATEGORY_HARASSMENT", "threshold", "BLOCK_NONE"),
-                Map.of("category", "HARM_CATEGORY_HATE_SPEECH", "threshold", "BLOCK_NONE"),
-                Map.of("category", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold", "BLOCK_NONE"),
-                Map.of("category", "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold", "BLOCK_NONE")
-            );
-            Map<String, Object> requestBody = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))), "safetySettings", safetySettings);
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
-
             // Build list of models to try, filtering out models that are in cooldown
             List<String> modelsToTry = new ArrayList<>();
             if (preferredModel != null && !preferredModel.isEmpty()) {
@@ -577,10 +576,12 @@ public class NewsSystemService {
             for (int i = 0; i < modelsToTry.size(); i++) {
                 String model = modelsToTry.get(i);
                 
-                // USER REQUEST: Removed auto-mapping alias. 
-                // "gemini-2.5-flash-lite" will be sent directly to the API.
-                
                 try {
+                    // Check if this is a DeepSeek model request
+                    if (model.startsWith("deepseek")) {
+                        return callDeepSeekApi(prompt, model);
+                    }
+                    
                     // Add delay before trying this model (except for the first one)
                     if (i > 0) {
                         long delay = MIN_DELAY_BETWEEN_MODELS_MS;
@@ -600,8 +601,20 @@ public class NewsSystemService {
                     String urlStr = String.format(API_URL_TEMPLATE, model.trim(), apiKey);
                     System.out.println("DEBUG: FINAL API URL: " + urlStr.replace(apiKey, "API_KEY_HIDDEN"));
                     
-                    // USE URI OBJECT TO PREVENT DOUBLE-ENCODING OF THE COLON (:) 
+                    // USE URI OBJECT TO PREVENT DOUBLE-ENCODING OF THE COLON (:)
                     URI uri = URI.create(urlStr);
+                    
+                    // Prepare Gemini request (re-using existing structure logic)
+                    List<Map<String, String>> safetySettings = List.of(
+                        Map.of("category", "HARM_CATEGORY_HARASSMENT", "threshold", "BLOCK_NONE"),
+                        Map.of("category", "HARM_CATEGORY_HATE_SPEECH", "threshold", "BLOCK_NONE"),
+                        Map.of("category", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold", "BLOCK_NONE"),
+                        Map.of("category", "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold", "BLOCK_NONE")
+                    );
+                    Map<String, Object> requestBody = Map.of("contents", List.of(Map.of("parts", List.of(Map.of("text", prompt)))), "safetySettings", safetySettings);
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+                    HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
                     
                     ResponseEntity<Map> response = restTemplate.postForEntity(uri, entity, Map.class);
                     
@@ -612,11 +625,7 @@ public class NewsSystemService {
                             markModelFailure(model);
                             continue; // Try next model
                         }
-                        
-                        // Debug log to see exactly what the AI returned
-                        String preview = extracted.length() > 500 ? extracted.substring(0, 500) + "..." : extracted;
-                        System.out.println("DEBUG: SUCCESS! Model " + model + " returned: " + preview);
-                        
+                        System.out.println("DEBUG: SUCCESS! Called Gemini API with model: " + model);
                         logApiUsage(model, true);
                         return new ApiResult(extracted, model);
                     } else {
@@ -624,9 +633,6 @@ public class NewsSystemService {
                         markModelFailure(model);
                     }
                 } catch (HttpClientErrorException e) {
-                    String rawResponseBody = e.getResponseBodyAsString();
-                    System.err.println("CRITICAL: API Error for model " + model + ". Status: " + e.getStatusCode() + ". Body: " + rawResponseBody);
-                    
                     if (e.getStatusCode().value() == 429) {
                         // Rate limit hit - update cooldown timer and track
                         lastRateLimitTime = System.currentTimeMillis();
@@ -678,6 +684,45 @@ public class NewsSystemService {
                 lock.notifyAll();
             }
         }
+    }
+    
+    private ApiResult callDeepSeekApi(String prompt, String model) {
+        if (deepSeekApiKey == null || deepSeekApiKey.isEmpty()) {
+            throw new RuntimeException("DeepSeek API key is not configured.");
+        }
+        
+        System.out.println("DEBUG: Attempting DeepSeek API call with model: " + model);
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(deepSeekApiKey);
+        
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", model);
+        requestBody.put("messages", List.of(
+            Map.of("role", "user", "content", prompt)
+        ));
+        requestBody.put("stream", false);
+        
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+        
+        try {
+            ResponseEntity<Map> response = restTemplate.postForEntity(DEEPSEEK_API_URL, entity, Map.class);
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                Map<String, Object> body = response.getBody();
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) body.get("choices");
+                if (choices != null && !choices.isEmpty()) {
+                    Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+                    String content = (String) message.get("content");
+                    logApiUsage(model, true);
+                    return new ApiResult(content, model);
+                }
+            }
+        } catch (HttpClientErrorException e) {
+             System.err.println("DeepSeek API Error: " + e.getResponseBodyAsString());
+             throw e;
+        }
+        throw new RuntimeException("DeepSeek returned empty response");
     }
     
     private boolean isModelInCooldown(String model) {
@@ -839,56 +884,20 @@ public class NewsSystemService {
         return result;
     }
 
-    private AnalysisResponse.AnalysisData parseJsonFromAI(String rawText) {
-        try {
-            String jsonText = cleanJsonText(rawText);
-            return objectMapper.readValue(jsonText, AnalysisResponse.AnalysisData.class);
-        } catch (Exception e) { 
-            System.err.println("ERROR: JSON Parsing failed for text: " + rawText);
-            return new AnalysisResponse.AnalysisData("Failed to parse response: " + e.getMessage()); 
-        }
-    }
-    
     private List<MergedNewsCluster> parseClusterJsonFromAI(String rawText) {
         try {
-            String jsonText = cleanJsonText(rawText);
+            String jsonText = rawText.replace("```json", "").replace("```", "").trim();
             return objectMapper.readValue(jsonText, new TypeReference<List<MergedNewsCluster>>(){});
         } catch (Exception e) {
-            System.err.println("ERROR: JSON Parsing failed for cluster text: " + rawText);
-            return List.of(new MergedNewsCluster("Analysis Error", "Failed to parse JSON: " + e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "ParseError"));
+            return List.of(new MergedNewsCluster("Analysis Error", "Failed to parse JSON.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "ParseError"));
         }
     }
 
-    private String cleanJsonText(String text) {
-        if (text == null) return "{}";
-        text = text.trim();
-        
-        // Remove markdown code blocks if present
-        if (text.startsWith("```")) {
-            text = text.replaceAll("^```[a-zA-Z]*", "").replaceAll("```$", "");
-        }
-        
-        // Find first '{' or '['
-        int firstBrace = text.indexOf('{');
-        int firstBracket = text.indexOf('[');
-        
-        if (firstBrace == -1 && firstBracket == -1) return text; // Give up, return as is
-        
-        int start = 0;
-        int end = text.length();
-        
-        if (firstBrace != -1 && (firstBracket == -1 || firstBrace < firstBracket)) {
-            start = firstBrace;
-            end = text.lastIndexOf('}') + 1;
-        } else if (firstBracket != -1) {
-            start = firstBracket;
-            end = text.lastIndexOf(']') + 1;
-        }
-        
-        if (end > start) {
-            return text.substring(start, end);
-        }
-        return text;
+    private AnalysisResponse.AnalysisData parseJsonFromAI(String rawText) {
+        try {
+            String jsonText = rawText.replace("```json", "").replace("```", "").trim();
+            return objectMapper.readValue(jsonText, AnalysisResponse.AnalysisData.class);
+        } catch (Exception e) { return new AnalysisResponse.AnalysisData("Failed to parse response."); }
     }
 
     private String extractTextFromResponse(Map<String, Object> responseBody) {
