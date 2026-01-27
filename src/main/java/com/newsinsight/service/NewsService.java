@@ -17,15 +17,17 @@ import java.util.List;
 @Service
 public class NewsService {
 
-    private static final String BBC_RSS_FEED = "https://feeds.bbci.co.uk/news/rss.xml";
-    private static final String CNN_RSS_FEED = "http://rss.cnn.com/rss/edition.rss"; // Full edition feed
+    private static final String BBC_RSS_FEED = "https://feeds.bbci.co.uk/news/world/rss.xml"; // Changed to World News for more volume
+    // CNN disabled per user request to focus on BBC
+    // private static final String CNN_RSS_FEED = "http://rss.cnn.com/rss/edition.rss"; 
 
     public List<NewsItem> getTopNews() {
-        return fetchNewsFromRss(BBC_RSS_FEED, 15);
+        return fetchNewsFromRss(BBC_RSS_FEED, 50); // Increased to 50 for more recent news
     }
 
     public List<NewsItem> getCNNNews() {
-        return fetchNewsFromRss(CNN_RSS_FEED, 40);
+        // Return empty list as CNN is ignored for now
+        return new ArrayList<>();
     }
 
     private List<NewsItem> fetchNewsFromRss(String feedUrlStr, int limit) {

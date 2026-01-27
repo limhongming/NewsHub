@@ -57,8 +57,8 @@ public class NewsSchedulerService {
             // 2. Try to process one BBC item
             if (processOneItem("bbc", cachedBBCRaw, false)) return;
 
-            // 3. Try to process one CNN item (CNN uses clustering logic usually, but here we treat item-by-item)
-            if (processOneItem("cnn", cachedCNNRaw, true)) return;
+            // 3. CNN processing disabled per user request
+            // if (processOneItem("cnn", cachedCNNRaw, true)) return;
 
         } catch (Exception e) {
             System.err.println("SCHEDULER: Error in process cycle: " + e.getMessage());
