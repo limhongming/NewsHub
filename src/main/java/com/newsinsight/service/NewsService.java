@@ -53,7 +53,7 @@ public class NewsService {
                         "#",
                         new java.util.Date(),
                         "The RSS feed (" + feedUrlStr + ") was accessed but returned no articles. Parsing issue or empty feed.",
-                        null
+                        null // FIXED: Added null for imageUrl
                     ));
                 } else {
                     System.out.println("Successfully parsed " + entries.size() + " entries from " + feedUrlStr);
@@ -89,10 +89,6 @@ public class NewsService {
                                 }
                             }
                         }
-                        // Fallback for media:content if not in enclosures (Rome handles some modules)
-                        // For simplicity in this step, we stick to enclosures which are standard in many feeds.
-                        // BBC/CNN often use media:content which might require the MediaEntryModule.
-                        // But let's try the basic enclosure first.
                         
                         newsItems.add(new NewsItem(
                                 entry.getTitle(),
@@ -112,7 +108,7 @@ public class NewsService {
                 "#",
                 new java.util.Date(),
                 "Error details: " + e.toString() + " (" + feedUrlStr + ")",
-                null
+                null // FIXED: Added null for imageUrl
             ));
         }
         return newsItems;
@@ -121,8 +117,6 @@ public class NewsService {
     public NewsItem scrapeNewsItem(String url) {
         try {
             System.out.println("DEBUG: Scrape & Build NewsItem for: " + url);
-            // Reuse connection logic similar to scrapeArticleContent but we need the Document
-            // to get the Title as well.
             
              // Multiple User-Agent strings to rotate
             String[] userAgents = {
