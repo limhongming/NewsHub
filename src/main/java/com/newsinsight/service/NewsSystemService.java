@@ -304,32 +304,31 @@ public class NewsSystemService {
         } catch (Exception e) { return new AnalysisResponse.AnalysisData("Analysis failed: " + e.getMessage()); }
     }
 
-    public MergedNewsCluster analyzeSnippet(String title, String snippet, String lang, String preferredModel) {
-        String prompt = String.format("""
-            Analyze this news snippet. FOCUS ON LATEST INFORMATION.
-            Title: %s
-            Content: %s
-            
-            1. TRANSLATION: Translate \"topic\", \"summary\", \"economic_impact\", \"global_impact\", and \"what_next\" into %s.
-            2. ANALYSIS: Provide synthesized summary, economic impact, global impact, rating (1-10), and prediction. 
-            
-            Return ONLY JSON:
-            {\"topic\":\"...\",\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":\"8\",\"what_next\":\"...\"}
-            """, title, snippet, lang.equals("Chinese") ? "Simplified Chinese (zh-CN)" : lang);
-
-        try {
-            ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
-            Map<String, Object> map = objectMapper.readValue(result.text().replace("```json", "").replace("```", "").trim(), new TypeReference<Map<String, Object>>(){});
-            return new MergedNewsCluster(
-                (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
-                (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
-                Collections.emptyList(), result.model()
-            );
-        } catch (Exception e) {
-            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error");
+        public MergedNewsCluster analyzeSnippet(String title, String snippet, String lang, String preferredModel) {
+            String prompt = String.format("""
+                Analyze this news snippet. FOCUS ON LATEST INFORMATION.
+                Title: %s
+                Content: %s
+                
+                1. TRANSLATION: Translate \"topic\", \"summary\", \"economic_impact\", \"global_impact\", and \"what_next\" into %s.
+                2. ANALYSIS: Provide synthesized summary, economic impact, global impact, rating (1-10), and prediction.
+                
+                Return ONLY JSON:
+                {\"topic\":\"...\",\"summary\":\"...\",\"economic_impact\":\"...\",\"global_impact\":\"...\",\"impact_rating\":\"8\",\"what_next\":\"...\"}
+                """, title, snippet, lang.equals("Chinese") ? "Simplified Chinese (zh-CN)" : lang);
+    
+            try {
+                ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
+                Map<String, Object> map = objectMapper.readValue(result.text().replace("```json", "").replace("```", "").trim(), new TypeReference<Map<String, Object>>(){});
+                return new MergedNewsCluster(
+                    (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
+                    (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
+                    Collections.emptyList(), result.model(), null
+                );
+            } catch (Exception e) {
+                return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error", null);
+            }
         }
-    }
-
     public List<MergedNewsCluster> processAndClusterNews(List<NewsItem> items, String language, boolean shouldCluster, String preferredModel) {
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
              return List.of(new MergedNewsCluster("API Key Missing", "Please configure gemini.api.key", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "None"));
@@ -428,11 +427,11 @@ public class NewsSystemService {
             ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
             List<MergedNewsCluster> clusters = parseClusterJsonFromAI(result.text());
             return clusters.stream()
-                .map(c -> new MergedNewsCluster(c.topic(), c.summary(), c.economic_impact(), c.global_impact(), c.impact_rating(), c.what_next(), c.related_links(), result.model()))
+                .map(c -> new MergedNewsCluster(c.topic(), c.summary(), c.economic_impact(), c.global_impact(), c.impact_rating(), c.what_next(), c.related_links(), result.model(), null))
                 .collect(Collectors.toList());
         } catch (Exception e) {
             String msg = (e instanceof HttpClientErrorException) ? ((HttpClientErrorException) e).getResponseBodyAsString() : e.getMessage();
-            return List.of(new MergedNewsCluster("System Error", "Analysis Failed: " + msg, "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error"));
+            return List.of(new MergedNewsCluster("System Error", "Analysis Failed: " + msg, "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error", null));
         }
     }
     
@@ -456,10 +455,10 @@ public class NewsSystemService {
             return new MergedNewsCluster(
                 (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
                 (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
-                List.of(item.link()), result.model()
+                List.of(item.link()), result.model(), item.imageUrl()
             );
         } catch (Exception e) {
-            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", List.of(item.link()), "Error");
+            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", List.of(item.link()), "Error", null);
         }
     }
     
@@ -501,7 +500,8 @@ public class NewsSystemService {
                     first.impact_rating(),
                     first.what_next(),
                     allLinks,
-                    first.modelUsed()
+                    first.modelUsed(),
+                    first.imageUrl()
                 ));
             }
         }
@@ -773,7 +773,7 @@ public class NewsSystemService {
             return objectMapper.readValue(jsonText, new TypeReference<List<MergedNewsCluster>>(){});
         } catch (Exception e) {
             System.err.println("JSON Parse Error: " + e.getMessage() + "\nInput: " + rawText);
-            return List.of(new MergedNewsCluster("Analysis Error", "Failed to parse JSON: " + e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "ParseError"));
+            return List.of(new MergedNewsCluster("Analysis Error", "Failed to parse JSON: " + e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "ParseError", null));
         }
     }
 

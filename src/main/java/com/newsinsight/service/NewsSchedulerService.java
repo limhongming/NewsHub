@@ -144,7 +144,8 @@ public class NewsSchedulerService {
                 newResult = new MergedNewsCluster(
                     newResult.topic(), newResult.summary(), newResult.economic_impact(),
                     newResult.global_impact(), newResult.impact_rating(), newResult.what_next(),
-                    Collections.singletonList(candidate.link()), newResult.modelUsed()
+                    Collections.singletonList(candidate.link()), newResult.modelUsed(),
+                    candidate.imageUrl()
                 );
             }
         }
