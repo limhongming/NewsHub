@@ -802,4 +802,64 @@ public class NewsSystemService {
         } catch (Exception e) {}
         return "{}";
     }
+
+    private void resetUsageStatsIfNeeded() {
+        long now = System.currentTimeMillis();
+        if (now - lastUsageResetTime >= USAGE_RESET_INTERVAL_MS) {
+            apiCallCounts.clear();
+            rateLimitCounts.clear();
+            lastUsageResetTime = now;
+            System.out.println("API usage statistics reset (hourly interval)");
+        }
+    }
+    
+    // Public method to get current API usage stats (could be exposed via REST endpoint)
+    public Map<String, Object> getApiUsageStats() {
+        Map<String, Object> stats = new ConcurrentHashMap<>();
+        stats.put("totalCalls", apiCallCounts.values().stream().mapToInt(Integer::intValue).sum());
+        stats.put("rateLimitCount", rateLimitCounts.values().stream().mapToInt(Integer::intValue).sum());
+        stats.put("lastReset", lastUsageResetTime);
+        stats.put("nextResetInMs", USAGE_RESET_INTERVAL_MS - (System.currentTimeMillis() - lastUsageResetTime));
+        stats.put("perModelCalls", new HashMap<>(apiCallCounts));
+        stats.put("perModelRateLimits", new HashMap<>(rateLimitCounts));
+        return stats;
+    }
+
+    public Map<String, String> checkGeminiHealth() {
+        Map<String, String> result = new HashMap<>();
+        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
+            result.put("status", "DOWN");
+            result.put("message", "API key is not configured.");
+            return result;
+        }
+        return result; // Simplified health check for now to avoid dependency issues
+    }
+
+    private boolean isModelInCooldown(String model) {
+        Long failureTime = modelFailureTimes.get(model);
+        if (failureTime == null) return false;
+        
+        long timeSinceFailure = System.currentTimeMillis() - failureTime;
+        if (timeSinceFailure >= MODEL_FAILURE_COOLDOWN_MS) {
+            modelFailureTimes.remove(model);
+            return false;
+        }
+        return true;
+    }
+    
+    private void markModelFailure(String model) {
+        modelFailureTimes.put(model, System.currentTimeMillis());
+    }
+    
+    private void trackApiCall(String model) {
+        apiCallCounts.merge(model, 1, Integer::sum);
+    }
+    
+    private void trackRateLimit(String model) {
+        rateLimitCounts.merge(model, 1, Integer::sum);
+    }
+    
+    private void logApiUsage(String model, boolean success) {
+        System.out.println("API Call: " + model + ", Success: " + success);
+    }
 }
