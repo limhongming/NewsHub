@@ -56,7 +56,7 @@ public class NewsController {
     }
 
     @GetMapping("/news/merged")
-    public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-1.5-flash") String model) {
+    public List<MergedNewsCluster> getMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "deepseek-chat") String model) {
         // Fix for deprecated/invalid model names
         if (model.contains("2.5")) {
             model = "gemini-1.5-flash";
@@ -70,7 +70,7 @@ public class NewsController {
     }
 
     @GetMapping("/news/bbc/merged")
-    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-1.5-flash") String model) {
+    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "deepseek-chat") String model) {
         System.out.println("CONTROLLER: getBBCMergedNews request for model: " + model);
         
         // Return cached news immediately. 

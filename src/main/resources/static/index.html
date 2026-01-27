@@ -170,11 +170,11 @@
             <div class="d-flex align-items-center gap-2">
                 <div class="input-group input-group-sm">
                     <select id="model-select" class="form-select bg-dark text-light border-secondary" style="width: auto;">
-                        <option value="gemini-2.5-flash-lite" selected>Gemini 2.5 Flash Lite</option>
+                        <option value="deepseek-chat" selected>DeepSeek V3</option>
+                        <option value="deepseek-reasoner">DeepSeek R1</option>
+                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite</option>
                         <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                         <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                        <option value="deepseek-chat">DeepSeek V3</option>
-                        <option value="deepseek-reasoner">DeepSeek R1</option>
                     </select>
                     <span id="fallback-info" class="input-group-text bg-dark border-secondary text-secondary" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Auto-Fallback Active: If your selected model hits a rate limit, the system will automatically try others to ensure you get results.">
                         ℹ️
@@ -837,7 +837,7 @@
                                             const select = document.getElementById('model-select');
                                             select.innerHTML = '';
                                                                                                         if (models.length === 0) {
-                                                                                                            const opt = document.createElement('option'); opt.text = "Default (Gemini 2.5 Flash Lite)"; opt.value = "gemini-2.5-flash-lite"; select.add(opt);
+                                                                                                            const opt = document.createElement('option'); opt.text = "Default (DeepSeek V3)"; opt.value = "deepseek-chat"; select.add(opt);
                                                                                                         } else {
                                                                                                             models.sort((a, b) => { 
                                                                                                                 if (a.name.includes('flash') && !b.name.includes('flash')) return -1; 
@@ -847,7 +847,7 @@
                                                                                                             models.forEach(model => {
                                                                                                                 const opt = document.createElement('option'); opt.value = model.name; 
                                                                                                                 opt.text = model.displayName ? model.displayName + " (" + model.version + ")" : model.name;
-                                                                                                                if (model.name === 'gemini-2.5-flash-lite') opt.selected = true; 
+                                                                                                                if (model.name === 'deepseek-chat') opt.selected = true; 
                                                                                                                 select.add(opt);
                                                                                                             });
                                                                                                         }                                            initTooltips();
