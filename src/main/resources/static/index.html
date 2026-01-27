@@ -173,6 +173,8 @@
                         <option value="gemini-2.5-flash-lite" selected>Gemini 2.5 Flash Lite</option>
                         <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                         <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                        <option value="deepseek-chat">DeepSeek V3</option>
+                        <option value="deepseek-reasoner">DeepSeek R1</option>
                     </select>
                     <span id="fallback-info" class="input-group-text bg-dark border-secondary text-secondary" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Auto-Fallback Active: If your selected model hits a rate limit, the system will automatically try others to ensure you get results.">
                         ℹ️
@@ -834,16 +836,21 @@
                                             const models = await response.json();
                                             const select = document.getElementById('model-select');
                                             select.innerHTML = '';
-                                                            if (models.length === 0) {
-                                                                const opt = document.createElement('option'); opt.text = "Default (Gemini 2.5 Flash Lite)"; opt.value = "gemini-2.5-flash-lite"; select.add(opt);
-                                                            } else {
-                                                                models.sort((a, b) => { if (a.name.includes('flash') && !b.name.includes('flash')) return -1; if (!a.name.includes('flash') && b.name.includes('flash')) return 1; return a.name.localeCompare(b.name); });
-                                                                models.forEach(model => {
-                                                                    const opt = document.createElement('option'); opt.value = model.name; opt.text = model.displayName + " (" + model.version + ")";
-                                                                    if (model.name === 'gemini-2.5-flash-lite') opt.selected = true; 
-                                                                    select.add(opt);
-                                                                });
-                                                            }                                            initTooltips();
+                                                                                                        if (models.length === 0) {
+                                                                                                            const opt = document.createElement('option'); opt.text = "Default (Gemini 2.5 Flash Lite)"; opt.value = "gemini-2.5-flash-lite"; select.add(opt);
+                                                                                                        } else {
+                                                                                                            models.sort((a, b) => { 
+                                                                                                                if (a.name.includes('flash') && !b.name.includes('flash')) return -1; 
+                                                                                                                if (!a.name.includes('flash') && b.name.includes('flash')) return 1; 
+                                                                                                                return a.name.localeCompare(b.name); 
+                                                                                                            });
+                                                                                                            models.forEach(model => {
+                                                                                                                const opt = document.createElement('option'); opt.value = model.name; 
+                                                                                                                opt.text = model.displayName ? model.displayName + " (" + model.version + ")" : model.name;
+                                                                                                                if (model.name === 'gemini-2.5-flash-lite') opt.selected = true; 
+                                                                                                                select.add(opt);
+                                                                                                            });
+                                                                                                        }                                            initTooltips();
                                         } catch (e) { console.error("Could not load models:", e); }
                                     }
                             
