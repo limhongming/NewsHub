@@ -709,11 +709,15 @@ public class NewsSystemService {
         try {
             ResponseEntity<Map> response = restTemplate.postForEntity(DEEPSEEK_API_URL, entity, Map.class);
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                // Extract content from DeepSeek format (OpenAI compatible)
                 Map<String, Object> body = response.getBody();
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) body.get("choices");
                 if (choices != null && !choices.isEmpty()) {
                     Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
                     String content = (String) message.get("content");
+                    
+                    System.out.println("DEBUG: DeepSeek Raw Response: " + content); // LOG RAW RESPONSE
+                    
                     logApiUsage(model, true);
                     return new ApiResult(content, model);
                 }
@@ -724,180 +728,63 @@ public class NewsSystemService {
         }
         throw new RuntimeException("DeepSeek returned empty response");
     }
-    
-    private boolean isModelInCooldown(String model) {
-        Long failureTime = modelFailureTimes.get(model);
-        if (failureTime == null) return false;
-        
-        long timeSinceFailure = System.currentTimeMillis() - failureTime;
-        if (timeSinceFailure >= MODEL_FAILURE_COOLDOWN_MS) {
-            // Cooldown expired, remove from tracking
-            modelFailureTimes.remove(model);
-            return false;
-        }
-        
-        System.out.println("DEBUG: Model " + model + " is in cooldown for " + 
-            ((MODEL_FAILURE_COOLDOWN_MS - timeSinceFailure) / 1000) + " more seconds");
-        return true;
-    }
-    
-    private void markModelFailure(String model) {
-        modelFailureTimes.put(model, System.currentTimeMillis());
-    }
-    
-    private void trackApiCall(String model) {
-        apiCallCounts.merge(model, 1, Integer::sum);
-        System.out.println("API Usage: Model " + model + " called " + apiCallCounts.get(model) + " times (this hour)");
-    }
-    
-    private void trackRateLimit(String model) {
-        rateLimitCounts.merge(model, 1, Integer::sum);
-        System.out.println("Rate Limit Alert: Model " + model + " hit rate limit " + rateLimitCounts.get(model) + " times (this hour)");
-    }
-    
-    private void logApiUsage(String model, boolean success) {
-        // Log detailed usage for monitoring
-        System.out.println("API Call Summary - Model: " + model + ", Success: " + success + 
-                         ", Total calls this hour: " + apiCallCounts.getOrDefault(model, 0) +
-                         ", Rate limits hit: " + rateLimitCounts.getOrDefault(model, 0));
-    }
-    
-    private void resetUsageStatsIfNeeded() {
-        long now = System.currentTimeMillis();
-        if (now - lastUsageResetTime >= USAGE_RESET_INTERVAL_MS) {
-            apiCallCounts.clear();
-            rateLimitCounts.clear();
-            lastUsageResetTime = now;
-            System.out.println("API usage statistics reset (hourly interval)");
-        }
-    }
-    
-    // Public method to get current API usage stats (could be exposed via REST endpoint)
-    public Map<String, Object> getApiUsageStats() {
-        Map<String, Object> stats = new ConcurrentHashMap<>();
-        stats.put("totalCalls", apiCallCounts.values().stream().mapToInt(Integer::intValue).sum());
-        stats.put("rateLimitCount", rateLimitCounts.values().stream().mapToInt(Integer::intValue).sum());
-        stats.put("lastReset", lastUsageResetTime);
-        stats.put("nextResetInMs", USAGE_RESET_INTERVAL_MS - (System.currentTimeMillis() - lastUsageResetTime));
-        stats.put("perModelCalls", new HashMap<>(apiCallCounts));
-        stats.put("perModelRateLimits", new HashMap<>(rateLimitCounts));
-        return stats;
-    }
 
-    /**
-     * Health check for Gemini API.
-     * Returns a map with status, message, and raw Gemini API response.
-     */
-    public Map<String, String> checkGeminiHealth() {
-        Map<String, String> result = new HashMap<>();
-        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your_api_key_here")) {
-            result.put("status", "DOWN");
-            result.put("message", "API key is not configured. Please set gemini.api.key in application.properties.");
-            result.put("rawResponse", "{}");
-            result.put("debugInfo", "API key is not configured");
-            return result;
+    private String cleanJsonText(String text) {
+        if (text == null) return "{}";
+        
+        // Remove DeepSeek R1 <think> blocks
+        text = text.replaceAll("(?s)<think>.*?</think>", "").trim();
+        
+        // Remove Markdown code blocks
+        text = text.replace("```json", "").replace("```", "").trim();
+        
+        // Find first '{' or '[' to handle chatty intros
+        int jsonStart = -1;
+        int curly = text.indexOf('{');
+        int square = text.indexOf('[');
+        
+        if (curly != -1 && square != -1) jsonStart = Math.min(curly, square);
+        else if (curly != -1) jsonStart = curly;
+        else if (square != -1) jsonStart = square;
+        
+        if (jsonStart > 0) {
+            text = text.substring(jsonStart);
         }
         
-        // Create debug info about the request (mask API key for security)
-        String apiKeyMasked = apiKey.length() > 8 ? 
-            apiKey.substring(0, 4) + "..." + apiKey.substring(apiKey.length() - 4) : 
-            "***";
-        String url = String.format(MODELS_API_URL, apiKey);
-        String urlForLogging = String.format(MODELS_API_URL, apiKeyMasked);
-        result.put("requestUrl", urlForLogging);
-        result.put("apiKeyPresent", "true");
-        result.put("apiKeyLength", String.valueOf(apiKey.length()));
+        // Find last '}' or ']'
+        int jsonEnd = -1;
+        int curlyEnd = text.lastIndexOf('}');
+        int squareEnd = text.lastIndexOf(']');
         
-        try {
-            // Make a lightweight call to list models with health check RestTemplate (shorter timeouts)
-            System.out.println("DEBUG: Checking Gemini API health at URL: " + urlForLogging);
-            ResponseEntity<Map> response = healthCheckRestTemplate.exchange(url, HttpMethod.GET, null, Map.class);
-            
-            // Add raw response (as JSON string) to result
-            String rawResponseJson = "{}";
-            if (response.getBody() != null) {
-                try {
-                    rawResponseJson = objectMapper.writeValueAsString(response.getBody());
-                } catch (Exception e) {
-                    rawResponseJson = "{\"error\": \"Failed to serialize response body\"}";
-                }
-            }
-            result.put("rawResponse", rawResponseJson);
-            result.put("httpStatus", String.valueOf(response.getStatusCode().value()));
-            result.put("httpStatusText", response.getStatusCode().toString());
-            
-            if (response.getStatusCode().is2xxSuccessful()) {
-                result.put("status", "UP");
-                result.put("message", "Gemini API is accessible.");
-            } else if (response.getStatusCode().value() == 429) {
-                result.put("status", "DOWN");
-                result.put("message", "Rate limit exceeded (429). Please wait before trying again.");
-            } else if (response.getStatusCode().value() == 404) {
-                result.put("status", "DOWN");
-                result.put("message", "API endpoint not found (404). The Gemini API may have changed. Request URL: " + urlForLogging);
-            } else if (response.getStatusCode().value() == 503) {
-                result.put("status", "DOWN");
-                result.put("message", "Service unavailable (503). Gemini API is temporarily down.");
-            } else {
-                result.put("status", "DOWN");
-                result.put("message", "Gemini API returned error: " + response.getStatusCode() + ". Request URL: " + urlForLogging);
-            }
-        } catch (org.springframework.web.client.ResourceAccessException e) {
-            // This includes connect timeout, read timeout, etc.
-            if (e.getMessage() != null && e.getMessage().contains("timeout")) {
-                result.put("status", "DOWN");
-                result.put("message", "Connection timeout. Gemini API is not responding within 10 seconds. Request URL: " + urlForLogging);
-            } else {
-                result.put("status", "DOWN");
-                result.put("message", "Network error: " + e.getMessage() + ". Request URL: " + urlForLogging);
-            }
-            result.put("rawResponse", "{\"error\": \"" + e.getClass().getSimpleName() + "\", \"message\": \"" + e.getMessage().replace("\"", "\\\"") + "\"}");
-            result.put("httpStatus", "0");
-            result.put("errorType", e.getClass().getSimpleName());
-        } catch (org.springframework.web.client.HttpClientErrorException e) {
-            String rawResponse = e.getResponseBodyAsString();
-            result.put("rawResponse", rawResponse != null ? rawResponse : "{}");
-            result.put("httpStatus", String.valueOf(e.getStatusCode().value()));
-            result.put("httpStatusText", e.getStatusCode().toString());
-            result.put("errorType", e.getClass().getSimpleName());
-            
-            if (e.getStatusCode().value() == 429) {
-                result.put("status", "DOWN");
-                result.put("message", "Rate limit exceeded (429). Please wait before trying again. Request URL: " + urlForLogging);
-            } else if (e.getStatusCode().value() == 401 || e.getStatusCode().value() == 403) {
-                result.put("status", "DOWN");
-                result.put("message", "Authentication failed (API key invalid). Please check gemini.api.key. Request URL: " + urlForLogging);
-            } else if (e.getStatusCode().value() == 404) {
-                result.put("status", "DOWN");
-                result.put("message", "API endpoint not found (404). The Gemini API may have changed. Full URL (API key masked): " + urlForLogging + ". Check if the API endpoint is correct.");
-            } else {
-                result.put("status", "DOWN");
-                result.put("message", "HTTP error " + e.getStatusCode() + ": " + rawResponse + ". Request URL: " + urlForLogging);
-            }
-        } catch (Exception e) {
-            result.put("status", "DOWN");
-            result.put("message", "Gemini API is unavailable: " + e.getClass().getSimpleName() + " - " + e.getMessage() + ". Request URL: " + urlForLogging);
-            result.put("rawResponse", "{\"error\": \"" + e.getClass().getSimpleName() + "\", \"message\": \"" + e.getMessage().replace("\"", "\\\"") + "\"}");
-            result.put("httpStatus", "0");
-            result.put("errorType", e.getClass().getSimpleName());
+        if (curlyEnd != -1 && squareEnd != -1) jsonEnd = Math.max(curlyEnd, squareEnd);
+        else if (curlyEnd != -1) jsonEnd = curlyEnd;
+        else if (squareEnd != -1) jsonEnd = squareEnd;
+        
+        if (jsonEnd != -1 && jsonEnd < text.length() - 1) {
+            text = text.substring(0, jsonEnd + 1);
         }
-        return result;
+        
+        return text;
     }
 
     private List<MergedNewsCluster> parseClusterJsonFromAI(String rawText) {
         try {
-            String jsonText = rawText.replace("```json", "").replace("```", "").trim();
+            String jsonText = cleanJsonText(rawText);
             return objectMapper.readValue(jsonText, new TypeReference<List<MergedNewsCluster>>(){});
         } catch (Exception e) {
-            return List.of(new MergedNewsCluster("Analysis Error", "Failed to parse JSON.", "N/A", "N/A", "0", "N/A", Collections.emptyList(), "ParseError"));
+            System.err.println("JSON Parse Error: " + e.getMessage() + "\nInput: " + rawText);
+            return List.of(new MergedNewsCluster("Analysis Error", "Failed to parse JSON: " + e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "ParseError"));
         }
     }
 
     private AnalysisResponse.AnalysisData parseJsonFromAI(String rawText) {
         try {
-            String jsonText = rawText.replace("```json", "").replace("```", "").trim();
+            String jsonText = cleanJsonText(rawText);
             return objectMapper.readValue(jsonText, AnalysisResponse.AnalysisData.class);
-        } catch (Exception e) { return new AnalysisResponse.AnalysisData("Failed to parse response."); }
+        } catch (Exception e) { 
+            System.err.println("JSON Parse Error: " + e.getMessage() + "\nInput: " + rawText);
+            return new AnalysisResponse.AnalysisData("Failed to parse response."); 
+        }
     }
 
     private String extractTextFromResponse(Map<String, Object> responseBody) {
