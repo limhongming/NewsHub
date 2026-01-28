@@ -359,7 +359,21 @@ public class NewsSystemService {
                 """, language.equals("Chinese") ? "Simplified Chinese (zh-CN)" : language, fullText);
 
         try {
-// ...
+            ApiResult result = callGeminiApiWithFallback(prompt, preferredModel);
+            String json = result.text().replace("```json", "").replace("```", "").trim();
+            // Handle potential single object response instead of array
+            if (json.startsWith("{")) json = "[" + json + "]";
+
+            List<Map<String, Object>> list = objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>(){});
+            return list.stream().map(map -> new MergedNewsCluster(
+                (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
+                (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
+                (List<String>)map.get("related_links"), result.model(), null
+            )).collect(java.util.stream.Collectors.toList());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
     }
     
     private MergedNewsCluster analyzeSingleArticle(NewsItem item, String language, String preferredModel) {
