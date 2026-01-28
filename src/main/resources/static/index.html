@@ -1,199 +1,319 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NewsHub</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { background-color: #000000; color: #ffffff; font-family: Arial, sans-serif; }
+        :root {
+            --nh-black: #0a0a0a;
+            --nh-dark-gray: #161616;
+            --nh-card-bg: #1e1e1e;
+            --nh-orange: #ff9900;
+            --nh-orange-hover: #e68a00;
+            --nh-text-main: #ffffff;
+            --nh-text-muted: #a0a0a0;
+            --nh-border: #333333;
+        }
+
+        body { 
+            background-color: var(--nh-black); 
+            color: var(--nh-text-main); 
+            font-family: 'Inter', sans-serif; 
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
         
         /* Navbar */
-        .navbar { background-color: #1b1b1b !important; border-bottom: 2px solid #ff9900; }
-        .navbar-brand { font-weight: bold; letter-spacing: -1px; }
-        .brand-news { background-color: #ffffff; color: #000000; padding: 2px 5px; border-radius: 3px; margin-right: 2px;}
-        .brand-hub { background-color: #ff9900; color: #000000; padding: 2px 5px; border-radius: 3px; font-weight: bold; }
+        .navbar { 
+            background-color: rgba(22, 22, 22, 0.95) !important; 
+            border-bottom: 1px solid #333;
+            backdrop-filter: blur(10px);
+            padding-top: 1rem;
+            padding-bottom: 1rem;
+        }
+        .navbar-brand { 
+            font-weight: 800; 
+            font-size: 1.5rem;
+            letter-spacing: -0.5px; 
+        }
+        .brand-news { color: #fff; }
+        .brand-hub { color: var(--nh-orange); }
         
-        /* Nav Tabs */
-        .nav-tabs .nav-link { color: #aaa; border: 1px solid transparent; }
-        .nav-tabs .nav-link.active { background-color: #1b1b1b; color: #ff9900; border-color: #ff9900 #ff9900 #1b1b1b; border-bottom: 2px solid #1b1b1b; }
-        .nav-tabs .nav-link:hover { border-color: #333; color: #fff; }
-        .nav-tabs { border-bottom: 1px solid #ff9900; margin-bottom: 20px; }
+        /* Controls & Inputs */
+        .form-select, .form-control {
+            background-color: #111;
+            border-color: #333;
+            color: #fff;
+            font-size: 0.9rem;
+        }
+        .form-select:focus, .form-control:focus {
+            background-color: #111;
+            border-color: var(--nh-orange);
+            color: #fff;
+            box-shadow: 0 0 0 0.25rem rgba(255, 153, 0, 0.25);
+        }
+
+        /* Tabs */
+        .nav-tabs { border-bottom: 1px solid #333; margin-bottom: 2rem; gap: 0.5rem; }
+        .nav-tabs .nav-link { 
+            color: var(--nh-text-muted); 
+            border: none; 
+            background: transparent;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        .nav-tabs .nav-link:hover { color: #fff; background-color: rgba(255,255,255,0.05); }
+        .nav-tabs .nav-link.active { 
+            background-color: var(--nh-orange); 
+            color: #000; 
+        }
 
         /* Cards */
         .news-card {    
-            background-color: #1b1b1b; 
-            border: none; 
-            color: #ffffff;
-            transition: all 0.2s; 
+            background-color: var(--nh-card-bg); 
+            border: 1px solid var(--nh-border); 
+            color: var(--nh-text-main);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; 
             height: 100%;
-            border: 1px solid #333;
-            overflow: hidden; /* For image corners */
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
         .news-card:hover { 
-            transform: translateY(-5px); 
-            box-shadow: 0 4px 15px rgba(255, 153, 0, 0.2); 
-            border: 1px solid #ff9900;
+            transform: translateY(-4px); 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3); 
+            border-color: var(--nh-orange);
         }
         .card-img-top {
-            height: 180px;
+            height: 200px;
             object-fit: cover;
-            border-bottom: 1px solid #333;
-            background-color: #111;
+            border-bottom: 1px solid var(--nh-border);
+            background-color: #000;
         }
-        .card-title { font-weight: bold; color: #ffffff; }
-        .card-subtitle { color: #888 !important; }
-        .card-text { color: #ccc; text-align: justify; }
+        .card-body { padding: 1.5rem; display: flex; flex-direction: column; height: 100%; }
+        .card-title { 
+            font-weight: 700; 
+            color: #fff; 
+            font-size: 1.15rem; 
+            margin-bottom: 0.75rem;
+            line-height: 1.4;
+        }
+        .card-subtitle { 
+            color: var(--nh-text-muted) !important; 
+            font-size: 0.8rem; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+            margin-bottom: 1rem; 
+        }
+        .card-text { 
+            color: #ccc; 
+            font-size: 0.95rem; 
+            line-height: 1.6; 
+            flex-grow: 1;
+        }
         
-        /* Justify AI Summary text */
-        .news-card p { text-align: justify; }
+        /* AI Placeholder/Analysis Area */
+        .ai-placeholder {
+            background: rgba(255, 153, 0, 0.03);
+            border: 1px dashed #444;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            color: #999;
+        }
         
         /* Buttons */
         .btn-primary, .btn-warning { 
-            background-color: #ff9900; 
-            border-color: #ff9900; 
-            color: #000000; 
-            font-weight: bold; 
+            background-color: var(--nh-orange); 
+            border: none; 
+            color: #000; 
+            font-weight: 700; 
             text-transform: uppercase;
-            width: 100%;
+            letter-spacing: 0.5px;
+            font-size: 0.85rem;
+            padding: 0.6rem 1.2rem;
+            border-radius: 6px;
+            transition: all 0.2s;
         }
         .btn-primary:hover, .btn-warning:hover { 
-            background-color: #cc7a00; 
-            border-color: #cc7a00; 
-            color: #000000;
+            background-color: var(--nh-orange-hover); 
+            color: #000;
+            transform: translateY(-1px);
         }
-        .btn-outline-light { border-color: #555; color: #aaa; }
-        .btn-outline-light:hover { background-color: #333; color: #fff; border-color: #fff; }
+        .btn-outline-secondary {
+            border-color: #444;
+            color: #aaa;
+            font-weight: 600;
+        }
+        .btn-outline-secondary:hover {
+            background-color: #333;
+            border-color: #555;
+            color: #fff;
+        }
+        .btn-outline-light { border-color: #444; color: #ccc; }
+        .btn-outline-light:hover { background-color: #333; color: #fff; border-color: #666; }
 
         /* Modal */
-        .modal-content { background-color: #1b1b1b; color: #fff; border: 1px solid #333; }
-        .modal-header { border-bottom: 1px solid #ff9900; }
-        .modal-footer { border-top: 1px solid #333; }
-        .btn-close { filter: invert(1); }
+        .modal-content { 
+            background-color: #1a1a1a; 
+            color: #fff; 
+            border: 1px solid #444; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            border-radius: 12px;
+        }
+        .modal-header { border-bottom: 1px solid #333; padding: 1.5rem; }
+        .modal-footer { border-top: 1px solid #333; padding: 1.5rem; }
+        .modal-body { padding: 2rem; }
+        .btn-close { filter: invert(1); opacity: 0.7; }
+        .btn-close:hover { opacity: 1; }
 
-        /* Loader */
-        .loader { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1050; }
-        .blur-bg { filter: blur(5px); pointer-events: none; }
-        .spinner-grow { color: #ff9900 !important; }
-
-        /* Analysis Specifics */
+        /* Analysis Details */
         .impact-badge {
-            font-size: 1.2rem;
-            padding: 10px 15px;
-            border-radius: 5px;
-            font-weight: bold;
+            font-size: 0.9rem;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-weight: 700;
+            letter-spacing: 1px;
             display: inline-block;
-            margin-right: 10px;
+            text-transform: uppercase;
         }
         .score-box {
-            border: 2px solid #ff9900;
+            border: 3px solid var(--nh-orange);
             border-radius: 50%;
-            width: 60px;
-            height: 60px;
+            width: 70px;
+            height: 70px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #ff9900;
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: var(--nh-orange);
+            background: rgba(255, 153, 0, 0.05);
         }
         .section-title {
-            color: #ff9900;
+            color: var(--nh-orange);
             border-bottom: 1px solid #333;
-            padding-bottom: 5px;
-            margin-top: 20px;
+            padding-bottom: 0.5rem;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
             text-transform: uppercase;
-            font-size: 0.9rem;
-            letter-spacing: 1px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
         }
+        .section-title:first-of-type { margin-top: 0; }
+        
         .article-reader {
-            max-height: 60vh;
+            max-height: 65vh;
             overflow-y: auto;
             background: #111;
-            padding: 15px;
-            border-radius: 5px;
+            padding: 2rem;
+            border-radius: 8px;
             font-family: 'Georgia', serif;
-            line-height: 1.6;
-            color: #ddd;
+            line-height: 1.8;
+            font-size: 1.05rem;
+            color: #e0e0e0;
             white-space: pre-wrap;
+            border: 1px solid #222;
         }
-        
-        .merged-meta {
-            font-size: 0.85rem;
-            color: #aaa;
-            border-top: 1px solid #333;
-            padding-top: 10px;
-            margin-top: 10px;
-        }
-        .link-list a { 
-            color: #ff9900;
-            text-decoration: none;
-            display: block;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .link-list a:hover { text-decoration: underline; }
 
+        /* Status Bar */
         .ai-status-bar {
-            background: #222;
+            background: #1e1e1e;
             border: 1px solid #333;
-            border-radius: 5px;
-            padding: 10px;
-            margin-bottom: 20px;
-            color: #aaa;
-            font-size: 0.9rem;
+            border-left: 4px solid var(--nh-orange);
+            border-radius: 4px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            color: #ccc;
+            font-size: 0.95rem;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         .pulsating-dot {
-            width: 10px;
-            height: 10px;
-            background-color: #ff9900;
+            width: 8px;
+            height: 8px;
+            background-color: var(--nh-orange);
             border-radius: 50%;
-            animation: pulse 1.5s infinite;
+            box-shadow: 0 0 0 0 rgba(255, 153, 0, 0.7);
+            animation: pulse-orange 2s infinite;
         }
-        @keyframes pulse {
-            0% { opacity: 0.5; transform: scale(0.8); }
-            50% { opacity: 1; transform: scale(1.2); }
-            100% { opacity: 0.5; transform: scale(0.8); }
+        @keyframes pulse-orange {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 153, 0, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(255, 153, 0, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 153, 0, 0); }
         }
-        .ai-placeholder {
-            background: rgba(255, 153, 0, 0.05);
-            border: 1px dashed #555;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 15px;
-            font-size: 0.85rem;
-            color: #888;
+
+        /* Loading */
+        .loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center; flex-direction: column; backdrop-filter: blur(5px); }
+        .spinner-grow { width: 3rem; height: 3rem; color: var(--nh-orange) !important; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+        /* Utilities */
+        .link-list a { 
+            color: var(--nh-orange);
+            text-decoration: none;
+            display: block;
+            margin-bottom: 4px;
+            opacity: 0.8;
+            transition: opacity 0.2s;
         }
+        .link-list a:hover { opacity: 1; text-decoration: underline; }
+        .text-justify { text-align: justify; }
+        
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
     </style>
 </head>
 <body>
 
-    <nav class="navbar navbar-dark mb-4">
-        <div class="container d-flex justify-content-between">
-            <span class="navbar-brand mb-0 h1">
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="#">
                 <span class="brand-news">News</span><span class="brand-hub">Hub</span>
-            </span>
-            <div class="d-flex align-items-center gap-2">
-                <div class="input-group input-group-sm">
-                    <select id="model-select" class="form-select bg-dark text-light border-secondary" style="width: auto;">
-                        <option value="gemini-1.5-flash" selected>Gemini 1.5 Flash</option>
-                        <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            </a>
+            
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarContent">
+                <div class="ms-auto d-flex align-items-center gap-3 flex-wrap my-2 my-lg-0">
+                    <div class="input-group input-group-sm" style="width: auto;">
+                        <span class="input-group-text bg-dark border-secondary text-secondary">Model</span>
+                        <select id="model-select" class="form-select bg-dark text-light border-secondary">
+                            <option value="gemini-1.5-flash" selected>Gemini 1.5 Flash</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                        </select>
+                        <span class="input-group-text bg-dark border-secondary text-secondary" data-bs-toggle="tooltip" title="Auto-Fallback Active">ℹ️</span>
+                    </div>
+
+                    <select id="lang-select" class="form-select form-select-sm bg-dark text-light border-secondary" style="width: auto;">
+                        <option value="English">English</option>
+                        <option value="Chinese">中文 (Chinese)</option>
                     </select>
-                    <span id="fallback-info" class="input-group-text bg-dark border-secondary text-secondary" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Auto-Fallback Active: If your selected model hits a rate limit, the system will automatically try others to ensure you get results.">
-                        ℹ️
-                    </span>
+
+                    <button id="refresh-button" class="btn btn-outline-light btn-sm px-3">Refresh</button>
+                    <button class="btn btn-outline-warning btn-sm px-3" data-bs-toggle="modal" data-bs-target="#importModal">Import</button>
+                    <a href="database-view.html" class="btn btn-outline-secondary btn-sm px-3">DB View</a>
                 </div>
-                <select id="lang-select" class="form-select form-select-sm bg-dark text-light border-secondary" style="width: auto;">
-                    <option value="English">English</option>
-                    <option value="Chinese">中文 (Chinese)</option>
-                </select>
-                <button id="refresh-button" class="btn btn-outline-light btn-sm">Refresh (30s)</button>
-                <button class="btn btn-outline-info btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#importModal">Import</button>
-                <a href="database-view.html" class="btn btn-outline-secondary btn-sm ms-2">DB View</a>
             </div>
         </div>
     </nav>
@@ -207,106 +327,107 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="small text-muted">Paste BBC article URLs (one per line) to analyze and add them to the list.</p>
-                    <textarea id="import-urls" class="form-control bg-dark text-light" rows="10" placeholder="https://www.bbc.com/news/article..."></textarea>
-                    <div id="import-status" class="mt-2 small"></div>
+                    <p class="text-muted small mb-3">Paste BBC article URLs (one per line) to analyze and add them to the list.</p>
+                    <textarea id="import-urls" class="form-control bg-dark text-light border-secondary" rows="8" placeholder="https://www.bbc.com/news/article..."></textarea>
+                    <div id="import-status" class="mt-3 small"></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary" onclick="runImport()">Process Import</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="container">
+    <div class="container pb-5">
         
         <ul class="nav nav-tabs" id="newsTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="bbc-new-tab" data-bs-toggle="tab" data-bs-target="#bbc-new-pane" type="button" role="tab" aria-selected="true" onclick="switchTab('bbc-new')">BBC AI Analyzed</button>
+                <button class="nav-link active" id="bbc-new-tab" data-bs-toggle="tab" data-bs-target="#bbc-new-pane" type="button" role="tab" onclick="switchTab('bbc-new')">BBC AI Analyzed</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="bbc-summarized-tab" data-bs-toggle="tab" data-bs-target="#bbc-summarized-pane" type="button" role="tab" aria-selected="false" onclick="switchTab('bbc-summarized')">BBC Summarized</button>
+                <button class="nav-link" id="bbc-summarized-tab" data-bs-toggle="tab" data-bs-target="#bbc-summarized-pane" type="button" role="tab" onclick="switchTab('bbc-summarized')">BBC Summarized</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="cnn-tab" data-bs-toggle="tab" data-bs-target="#cnn-pane" type="button" role="tab" aria-selected="false" onclick="switchTab('cnn')">CNN AI Analyzed</button>
+                <button class="nav-link" id="cnn-tab" data-bs-toggle="tab" data-bs-target="#cnn-pane" type="button" role="tab" onclick="switchTab('cnn')">CNN AI Analyzed</button>
             </li>
         </ul>
 
-        <div class="tab-content" id="myTabContent">
-            <!-- BBC NEW PANE (Unanalyzed articles) -->
-            <div class="tab-pane fade show active" id="bbc-new-pane" role="tabpanel" aria-labelledby="bbc-new-tab" text-align="justify-content">
+        <div class="tab-content pt-3" id="myTabContent">
+            <!-- BBC NEW PANE -->
+            <div class="tab-pane fade show active" id="bbc-new-pane" role="tabpanel">
                 <div id="bbc-new-status-bar" class="d-none"></div>
                 <div class="row g-4" id="bbc-new-container"></div>
             </div>
 
-            <!-- BBC SUMMARIZED PANE (Analyzed articles) -->
-            <div class="tab-pane fade" id="bbc-summarized-pane" role="tabpanel" aria-labelledby="bbc-summarized-tab" text-align="justify-content">
+            <!-- BBC SUMMARIZED PANE -->
+            <div class="tab-pane fade" id="bbc-summarized-pane" role="tabpanel">
                 <div id="bbc-summarized-status-bar" class="d-none"></div>
                 <div class="row g-4" id="bbc-summarized-container"></div>
             </div>
 
             <!-- CNN MERGED PANE -->
-            <div class="tab-pane fade" id="cnn-pane" role="tabpanel" aria-labelledby="cnn-tab">
+            <div class="tab-pane fade" id="cnn-pane" role="tabpanel">
                 <div id="cnn-status-bar" class="d-none"></div>
                 <div class="row g-4" id="cnn-container"></div>
             </div>
         </div>
     </div>
 
-    <!-- Analysis Modal (BBC/CNN Single Item) -->
+    <!-- Analysis Modal -->
     <div class="modal fade" id="analysisModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modal-title">Analysis</h5>
+                    <h5 class="modal-title text-warning" id="modal-title">Analysis</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-lg-4 border-end border-secondary">
-                            <div class="d-flex align-items-center mb-4 justify-content-between">
+                        <div class="col-lg-4 border-end border-secondary pe-lg-4">
+                            <div class="d-flex align-items-center mb-4 justify-content-between bg-dark p-3 rounded border border-secondary">
                                 <div id="urgency-badge" class="impact-badge bg-secondary text-white">PENDING</div>
                                 <div class="text-center">
-                                    <div class="small text-muted mb-1">IMPACT RATING</div>
+                                    <div class="small text-muted mb-1 text-uppercase" style="font-size: 0.7rem;">Impact Score</div>
                                     <div id="impact-score" class="score-box">-</div>
                                 </div>
                             </div>
-                            <h6 class="section-title">AI Summary</h6>
-                            <p id="ai-summary" class="small">Loading...</p>
+                            <h6 class="section-title">AI Executive Summary</h6>
+                            <p id="ai-summary" class="small text-secondary">Loading...</p>
                             <h6 class="section-title">Economic Impact</h6>
-                            <p id="ai-econ" class="small">Loading...</p>
+                            <p id="ai-econ" class="small text-secondary">Loading...</p>
                             <h6 class="section-title">Global Impact</h6>
-                            <p id="ai-world" class="small">Loading...</p>
+                            <p id="ai-world" class="small text-secondary">Loading...</p>
                         </div>
-                        <div class="col-lg-8">
+                        <div class="col-lg-8 ps-lg-4">
                             <h6 class="section-title mt-0">Full Article Content</h6>
                             <div id="article-text" class="article-reader">Loading article content...</div>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-warning btn-sm me-auto" onclick="toggleRawData()">View Raw JSON</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <a href="#" id="original-link" target="_blank" class="btn btn-outline-light">Open Source Website</a>
+                <div class="modal-footer d-flex justify-content-between bg-dark border-top border-secondary">
+                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="toggleRawData()">View Raw JSON</button>
+                    <div class="d-flex gap-2">
+                         <a href="#" id="original-link" target="_blank" class="btn btn-outline-light btn-sm">Open Original Source</a>
+                         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    </div>
                 </div>
                 <div id="raw-data-container" class="w-100 p-3 bg-black text-warning font-monospace small d-none" style="max-height: 200px; overflow: auto; border-top: 1px solid #333;"></div>
             </div>
         </div>
     </div>
 
-    <!-- Global Spinner -->
-    <div class="loader text-center" id="global-loader">
-        <div class="spinner-grow" style="width: 3rem; height: 3rem;" role="status">
+    <!-- Global Loader -->
+    <div class="loader" id="global-loader" style="display: none;">
+        <div class="spinner-grow" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
-        <div class="mt-2 fw-bold text-dark bg-white px-2 rounded">Analyzing & Formatting...</div>
+        <div class="mt-3 fw-bold text-white px-3 py-2 rounded bg-dark border border-secondary">Analyzing & Formatting...</div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentTab = 'bbc-new';
-
         let bbcPendingCount = 0;
 
         function normalizeUrl(url) {
@@ -314,52 +435,29 @@
             return url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
         }
 
+        // --- Caching Logic ---
         function getCachedClusters(tab, lang, model) {
             const key = `clusters_${tab}_${lang}_${model}`;
             const item = localStorage.getItem(key);
             if (item) {
                 const { clusters, timestamp } = JSON.parse(item);
-                // Cache for 1 hour (3600000 ms) to reduce unnecessary analysis
-                if (Date.now() - timestamp < 3600000) {
-                    return { clusters, timestamp };
-                }
+                if (Date.now() - timestamp < 3600000) return { clusters, timestamp };
             }
             return null;
         }
 
         function setCachedClusters(tab, lang, model, clusters) {
             const key = `clusters_${tab}_${lang}_${model}`;
-            const item = JSON.stringify({ clusters, timestamp: Date.now() });
-            localStorage.setItem(key, item);
+            localStorage.setItem(key, JSON.stringify({ clusters, timestamp: Date.now() }));
         }
 
-        function getCachedArticleAnalysis(url, lang, model) {
-            const hash = btoa(url).replace(/[+/=]/g, '').substring(0, 16);
-            const key = `article_${hash}_${lang}_${model}`;
-            const item = localStorage.getItem(key);
-            if (item) {
-                const { analysis, timestamp } = JSON.parse(item);
-                // Cache for 1 hour (3600000 ms)
-                if (Date.now() - timestamp < 3600000) {
-                    return { analysis, timestamp };
-                }
-            }
-            return null;
-        }
-
-        function setCachedArticleAnalysis(url, lang, model, analysis) {
-            const hash = btoa(url).replace(/[+/=]/g, '').substring(0, 16);
-            const key = `article_${hash}_${lang}_${model}`;
-            const item = JSON.stringify({ analysis, timestamp: Date.now() });
-            localStorage.setItem(key, item);
-        }
-
+        // --- UI Updaters ---
         function showStatusBar(tab, message, isProcessing) {
             const bar = document.getElementById(tab + '-status-bar');
             bar.classList.remove('d-none');
             if (message.includes('Error') || message.includes('Failed')) {
-                bar.className = 'alert alert-danger border-danger d-flex align-items-center mb-4';
-                bar.innerHTML = `<div class="me-2">⚠️</div><div><strong>Analysis Issue:</strong> ${message}</div>`;
+                bar.className = 'alert alert-danger border-danger d-flex align-items-center mb-4 text-danger bg-dark';
+                bar.innerHTML = `<div class="me-2">⚠️</div><div><strong>Issue:</strong> ${message}</div>`;
             } else {
                 bar.className = 'ai-status-bar';
                 bar.innerHTML = isProcessing ? `<div class="pulsating-dot"></div> <span>${message}</span>` : `<span>${message}</span>`;
@@ -371,28 +469,29 @@
         function renderRawItems(container, items, isBBC) {
             container.innerHTML = '';
             if (!items || items.length === 0) {
-                container.innerHTML = '<div class="col-12 text-center text-muted">No news items found. Check RSS sources.</div>';
+                container.innerHTML = '<div class="col-12 text-center text-muted py-5">No news items found. Check RSS sources.</div>';
                 return;
             }
             items.forEach((item, index) => {
                 const card = document.createElement('div');
-                card.className = 'col-md-6 col-lg-4';
+                card.className = 'col-md-6 col-lg-4 fade-in';
+                card.style.animationDelay = (index * 50) + 'ms';
                 card.dataset.normalizedLink = normalizeUrl(item.link);
                 card.innerHTML = `
-                    <div class="card news-card">
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="card-title text-light">${item.title}</h5>
-                            <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>
-                            <p class="card-text text-secondary flex-grow-1 small">${item.summary || 'Fetching...'}</p>
-                            <div class="ai-placeholder mt-3">
+                    <div class="card news-card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title text-truncate-2">${item.title}</h5>
+                            <h6 class="card-subtitle mb-3">${new Date(item.published).toLocaleString()}</h6>
+                            <p class="card-text small text-secondary">${item.summary || 'Fetching summary...'}</p>
+                            
+                            <div class="ai-placeholder mt-auto">
                                 <div class="d-flex align-items-center loading-label">
-                                    <div class="spinner-grow spinner-grow-sm text-warning me-2" role="status"></div>
-                                    <span>AI Analysis: Still Loading...</span>
+                                    <div class="spinner-grow spinner-grow-sm text-secondary me-2" role="status"></div>
+                                    <span class="text-muted small">Queued for analysis...</span>
                                 </div>
                             </div>
-                            <div class="mt-3">
-                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100">Read Full Article</button>
-                            </div>
+                            
+                            <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100 mt-3">Read Full Article</button>
                         </div>
                     </div>
                 `;
@@ -423,22 +522,23 @@
                                     if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
                                     else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
                                     const uniqueId = 'details-inline-' + Math.random().toString(36).substr(2, 9);
-                                    aiBox.className = 'mt-3 border-top border-secondary pt-3';
+                                    aiBox.className = 'mt-3 pt-3 border-top border-secondary';
                                     aiBox.style.background = 'transparent';
                                     aiBox.style.border = 'none';
                                     aiBox.innerHTML = `
-                                        <h6 class="text-warning small text-uppercase mb-1">AI Summary</h6>
-                                        <p class="text-white small">${cluster.summary}</p>
                                         <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span class="badge bg-dark border border-secondary text-secondary">Impact: <span class="${ratingClass}">${rating}/10</span></span>
-                                            <span class="text-secondary" style="font-size: 0.65rem">${cluster.modelUsed || ''}</span>
-                                            <button class="btn btn-sm btn-link text-warning p-0 text-decoration-none" style="font-size: 0.8rem" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">Show Impacts ▼</button>
+                                            <h6 class="text-warning small text-uppercase mb-0 fw-bold">AI Insight</h6>
+                                            <span class="badge bg-dark border border-secondary text-light">Impact: <span class="${ratingClass}">${rating}/10</span></span>
                                         </div>
-                                        <div class="collapse" id="${uniqueId}">
+                                        <p class="text-light small mb-2">${cluster.summary}</p>
+                                        
+                                        <button class="btn btn-sm btn-link text-muted p-0 text-decoration-none" style="font-size: 0.8rem" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">
+                                            Show Details ▼
+                                        </button>
+                                        <div class="collapse mt-2" id="${uniqueId}">
                                             <div class="card card-body bg-dark border border-secondary p-2">
-                                                <p class="mb-1 small"><strong class="text-info">Economic:</strong> ${cluster.economic_impact}</p>
+                                                <p class="mb-1 small"><strong class="text-info">Econ:</strong> ${cluster.economic_impact}</p>
                                                 <p class="mb-1 small"><strong class="text-info">Global:</strong> ${cluster.global_impact}</p>
-                                                <p class="mb-0 small"><strong class="text-info">Next:</strong> ${cluster.what_next}</p>
                                             </div>
                                         </div>
                                     `;
@@ -453,7 +553,7 @@
 
         function renderSingleClusterCard(container, cluster, index) {
             const card = document.createElement('div');
-            card.className = 'col-md-12 fade-in'; 
+            card.className = 'col-md-12 fade-in';
             const uniqueId = 'details-' + index + '-' + Math.random().toString(36).substr(2, 9);
             const rating = cluster.impact_rating || 'N/A';
             let ratingClass = 'text-secondary';
@@ -461,32 +561,44 @@
             else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
 
             card.innerHTML = `
-                <div class="card news-card mb-3 border-warning">
+                <div class="card news-card mb-4 border-start border-4 border-start-warning">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <h3 class="card-title text-warning">${cluster.topic}</h3>
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h3 class="card-title text-warning mb-0">${cluster.topic}</h3>
                             <div class="text-end">
-                                <span class="badge bg-dark border border-secondary p-2 d-block mb-1">Impact: <span class="${ratingClass}">${rating}/10</span></span>
-                                <span class="badge bg-black border border-secondary text-secondary fw-normal" style="font-size: 0.7rem">AI: ${cluster.modelUsed || 'Unknown'}</span>
+                                <span class="badge bg-dark border border-secondary p-2 d-block mb-1 fs-6">Impact: <span class="${ratingClass}">${rating}/10</span></span>
+                                <span class="text-muted small">AI: ${cluster.modelUsed || 'Unknown'}</span>
                             </div>
                         </div>
-                        <hr style="border-color: #555;">
-                        <div class="row">
+                        
+                        <div class="row g-4">
                             <div class="col-md-8">
-                                <h6 class="text-secondary text-uppercase small">Summary</h6>
-                                <p class="card-text" style="font-size: 1.1rem; line-height: 1.6;">${cluster.summary}</p>
+                                <h6 class="text-secondary text-uppercase small fw-bold">Executive Summary</h6>
+                                <p class="card-text fs-5 text-light">${cluster.summary}</p>
                             </div>
-                            <div class="col-md-4 border-start border-secondary">
-                                <h6 class="text-secondary text-uppercase small">Economic Impact</h6>
-                                <p class="text-info">${cluster.economic_impact}</p>
+                            <div class="col-md-4 border-start border-secondary ps-4">
+                                <h6 class="text-secondary text-uppercase small fw-bold">Economic Impact</h6>
+                                <p class="text-info small">${cluster.economic_impact}</p>
                             </div>
                         </div>
-                        <div class="mt-3">
-                            <button class="btn btn-outline-warning btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">▼ View Potential Impacts & Predictions</button>
+
+                        <div class="mt-4 pt-3 border-top border-secondary">
+                            <button class="btn btn-outline-warning btn-sm w-100" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">▼ View Deep Dive & Predictions</button>
                             <div class="collapse mt-3" id="${uniqueId}">
                                 <div class="card card-body bg-dark border-secondary">
-                                    <div class="row"><div class="col-md-6"><h6 class="text-secondary text-uppercase small">Global Impact</h6><p class="text-light">${cluster.global_impact || 'N/A'}</p></div><div class="col-md-6"><h6 class="text-secondary text-uppercase small">What Next?</h6><p class="text-light fst-italic">"${cluster.what_next || 'N/A'}"</p></div></div>
-                                    <hr class="border-secondary"><h6 class="text-secondary text-uppercase small">Sources</h6><div class="link-list">${(cluster.related_links||[]).map(l=>`<a href="${l}" target="_blank">🔗 ${l}</a>`).join('')}</div>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <h6 class="text-secondary text-uppercase small fw-bold">Global Impact</h6>
+                                            <p class="text-light small">${cluster.global_impact || 'N/A'}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="text-secondary text-uppercase small fw-bold">What's Next?</h6>
+                                            <p class="text-light small fst-italic">"${cluster.what_next || 'N/A'}"</p>
+                                        </div>
+                                    </div>
+                                    <hr class="border-secondary my-3">
+                                    <h6 class="text-secondary text-uppercase small fw-bold">Sources</h6>
+                                    <div class="link-list small">${(cluster.related_links||[]).map(l=>`<a href="${l}" target="_blank">🔗 ${l}</a>`).join('')}</div>
                                 </div>
                             </div>
                         </div>
@@ -496,6 +608,7 @@
             container.appendChild(card);
         }
 
+        // --- Data Loading ---
         async function loadFeed(tabName, rawEndpoint, aiEndpoint, forceRefresh = false) {
             const container = document.getElementById(tabName + '-container');
             const lang = document.getElementById('lang-select').value;
@@ -507,19 +620,16 @@
                 const isBBC = tabName === 'bbc';
                 renderRawItems(container, rawItems, isBBC);
 
-                // For BBC tab, use per-article analysis with caching
                 if (isBBC) {
                     await loadBBCArticlesWithCache(container, rawItems, lang, model, forceRefresh);
                     return;
                 }
 
-                // For CNN tab, use the existing cluster-based approach with cache
                 if (!forceRefresh) {
                     const cached = getCachedClusters(tabName, lang, model);
                     if (cached) {
-                        // Check if we should warn about BBC priority
-                        if (!isBBC && bbcPendingCount > 0) {
-                            showStatusBar(tabName, `<strong>Notice:</strong> ${bbcPendingCount} BBC articles are currently being analyzed. CNN analysis is paused until BBC is complete.`, false);
+                         if (!isBBC && bbcPendingCount > 0) {
+                            showStatusBar(tabName, `<strong>Paused:</strong> ${bbcPendingCount} BBC articles pending analysis.`, false);
                         } else {
                             showStatusBar(tabName, `Using cached analysis (${new Date(cached.timestamp).toLocaleTimeString()})`, false);
                         }
@@ -528,46 +638,30 @@
                     }
                 }
                 
-                // Try to get AI analysis (cached or fresh)
-                showStatusBar(tabName, `Fetching AI analysis...`, true);
-                
-                // Warn about BBC priority if getting fresh data
+                showStatusBar(tabName, 'Synthesizing clusters...', true);
                 if (!isBBC && bbcPendingCount > 0) {
-                    showStatusBar(tabName, `<strong>Waiting:</strong> Prioritizing ${bbcPendingCount} pending BBC articles. CNN analysis will resume automatically when finished.`, true);
-                    // We still try to fetch in case there is cached data on server
+                     showStatusBar(tabName, `<strong>Waiting:</strong> BBC analysis in progress...`, true);
                 }
                 
                 const aiResponse = await fetch(`${aiEndpoint}?lang=${lang}&model=${model}`);
                 if (aiResponse.ok) {
                     const clusters = await aiResponse.json();
-                    // Cache the clusters if they are valid
                     if (clusters.length > 0 && !clusters[0].topic.includes('Error')) {
                         setCachedClusters(tabName, lang, model, clusters);
                     }
                     updateCardsWithClusters(container, clusters, isBBC);
                     if (clusters.length > 0) {
-                        if (clusters[0].topic.includes('Error')) {
-                            showStatusBar(tabName, clusters[0].topic + ': ' + clusters[0].summary, false);
-                        } else {
-                            showStatusBar(tabName, `Analysis Complete. (${clusters.length} topics found)`, false);
-                        }
+                         const msg = clusters[0].topic.includes('Error') ? clusters[0].topic : `Analysis Complete (${clusters.length} topics)`;
+                         showStatusBar(tabName, msg, false);
                     } else {
-                        showStatusBar(tabName, 'Analysis returned no results.', false);
-                        updateCardsWithClusters(container, [], isBBC);
+                        showStatusBar(tabName, 'No significant topics found.', false);
                     }
                 } else {
-                    // AI analysis fetch failed
-                    const errorText = await aiResponse.text();
-                    console.error('AI analysis fetch failed:', errorText);
-                    const loaders = container.querySelectorAll('.loading-label');
-                    loaders.forEach(l => l.innerHTML = `<span class="text-danger">AI Analysis: Failed to load (${aiResponse.status})</span>`);
-                    showStatusBar(tabName, 'Analysis failed: ' + errorText, false);
+                    throw new Error(await aiResponse.text());
                 }
             } catch (error) {
                 console.error(error);
                 showStatusBar(tabName, 'Error: ' + error.message, false);
-                const loaders = container.querySelectorAll('.loading-label');
-                loaders.forEach(l => l.innerHTML = `<span class="text-danger">AI Analysis: Network error</span>`);
             }
         }
 
@@ -577,415 +671,319 @@
             const newContainer = document.getElementById('bbc-new-container');
             const summarizedContainer = document.getElementById('bbc-summarized-container');
             
-            showStatusBar('bbc-new', 'Fetching BBC headlines...', true);
-            showStatusBar('bbc-summarized', 'Loading cached summaries...', true);
+            showStatusBar('bbc-new', 'Checking for new articles...', true);
+            showStatusBar('bbc-summarized', 'Loading summaries...', true);
             
             try {
-                // 1. Fetch Server-Side Summarized/Analyzed News (Background Processed)
-                // The backend scheduler now maintains this list in the database.
                 const summarizedResponse = await fetch(`/api/news/bbc/merged?lang=${lang}&model=${model}`);
-                let summarizedClusters = [];
-                if (summarizedResponse.ok) {
-                    summarizedClusters = await summarizedResponse.json();
-                }
+                let summarizedClusters = summarizedResponse.ok ? await summarizedResponse.json() : [];
 
-                // 2. Fetch Raw News
                 const rawResponse = await fetch('/api/news');
                 const rawItems = await rawResponse.json();
                 
-                // Clear containers
                 newContainer.innerHTML = '';
                 summarizedContainer.innerHTML = '';
                 
-                // Helper: Map Link -> NewsItem for date/original title lookup
                 const itemMap = new Map();
-                if (rawItems && rawItems.length > 0) {
-                    rawItems.forEach(i => itemMap.set(normalizeUrl(i.link), i));
-                }
+                if (rawItems) rawItems.forEach(i => itemMap.set(normalizeUrl(i.link), i));
                 
-                // 3. Render Summarized
+                // Render Summarized
                 if (summarizedClusters && summarizedClusters.length > 0) {
-                     // Sort summarized articles by the date of their first related link if available
                      summarizedClusters.sort((a, b) => {
-                         const itemA = a.related_links && a.related_links.length > 0 ? itemMap.get(normalizeUrl(a.related_links[0])) : null;
-                         const itemB = b.related_links && b.related_links.length > 0 ? itemMap.get(normalizeUrl(b.related_links[0])) : null;
-                         const dateA = itemA ? new Date(itemA.published) : new Date(0);
-                         const dateB = itemB ? new Date(itemB.published) : new Date(0);
-                         return dateB - dateA;
+                         const itemA = a.related_links?.[0] ? itemMap.get(normalizeUrl(a.related_links[0])) : null;
+                         const itemB = b.related_links?.[0] ? itemMap.get(normalizeUrl(b.related_links[0])) : null;
+                         return (itemB ? new Date(itemB.published) : 0) - (itemA ? new Date(itemA.published) : 0);
                      });
 
                      summarizedClusters.forEach(cluster => {
-                         // Skip error clusters if you want, or show them
                          if (cluster.topic && cluster.topic.includes('Error')) return;
-
-                         // Find matching raw item to get date/title if possible
-                         let originalItem = null;
-                         if (cluster.related_links && cluster.related_links.length > 0) {
-                             originalItem = itemMap.get(normalizeUrl(cluster.related_links[0]));
-                         }
-                         
-                         // If we can't find the original item (maybe it fell off RSS), we construct a dummy one
+                         let originalItem = cluster.related_links?.[0] ? itemMap.get(normalizeUrl(cluster.related_links[0])) : null;
                          const item = originalItem || {
                              title: cluster.topic,
-                             link: cluster.related_links && cluster.related_links.length > 0 ? cluster.related_links[0] : '#',
-                             published: new Date(), // We don't have date in cluster
+                             link: cluster.related_links?.[0] || '#',
+                             published: new Date(),
                              summary: cluster.summary
                          };
-                         
-                         // Create card
-                         const card = createArticleCard(item, cluster, true);
-                         summarizedContainer.appendChild(card);
+                         summarizedContainer.appendChild(createArticleCard(item, cluster, true));
                      });
-                     
-                     showStatusBar('bbc-summarized', `${summarizedClusters.length} summarized articles loaded.`, false);
+                     showStatusBar('bbc-summarized', `${summarizedClusters.length} analyzed articles.`, false);
                 } else {
-                     summarizedContainer.innerHTML = '<div class="col-12 text-center text-muted">No summarized articles found. Background analysis pending...</div>';
-                     showStatusBar('bbc-summarized', 'No summaries available yet.', false);
+                     summarizedContainer.innerHTML = '<div class="col-12 text-center text-muted py-5">No summaries yet.</div>';
+                     showStatusBar('bbc-summarized', 'Empty.', false);
                 }
 
-                // 4. Render New (Unsummarized)
-                // Filter rawItems that are NOT in summarizedClusters
+                // Render New
                 const summarizedLinks = new Set();
                 if (summarizedClusters) {
-                    summarizedClusters.forEach(c => {
-                        if (c.related_links) c.related_links.forEach(l => summarizedLinks.add(normalizeUrl(l)));
-                    });
+                    summarizedClusters.forEach(c => c.related_links?.forEach(l => summarizedLinks.add(normalizeUrl(l))));
                 }
                 
                 const newItems = (rawItems || []).filter(item => !summarizedLinks.has(normalizeUrl(item.link)));
-                
-                // Sort new items by date descending
                 newItems.sort((a, b) => new Date(b.published) - new Date(a.published));
 
                 if (newItems.length > 0) {
-                     newItems.forEach(item => {
-                         const card = createArticleCard(item, null, false);
-                         newContainer.appendChild(card);
-                     });
+                     newItems.forEach(item => newContainer.appendChild(createArticleCard(item, null, false)));
                      bbcPendingCount = newItems.length;
-                     showStatusBar('bbc-new', `${newItems.length} new articles available.`, false);
+                     showStatusBar('bbc-new', `${newItems.length} articles waiting for analysis.`, false);
                 } else {
-                     newContainer.innerHTML = '<div class="col-12 text-center text-muted">All current news has been summarized.</div>';
+                     newContainer.innerHTML = '<div class="col-12 text-center text-muted py-5">All caught up!</div>';
                      bbcPendingCount = 0;
-                     showStatusBar('bbc-new', 'Up to date.', false);
+                     showStatusBar('bbc-new', 'No new articles.', false);
                 }
                 
             } catch (error) {
-                console.error('Error loading BBC articles:', error);
-                showStatusBar('bbc-new', 'Error: ' + error.message, false);
-                showStatusBar('bbc-summarized', 'Error loading summarized articles.', false);
+                console.error(error);
+                showStatusBar('bbc-new', 'Network Error', false);
             }
         }
         
         function createArticleCard(item, analysis, isAnalyzed) {
             const card = document.createElement('div');
-            card.className = 'col-md-6 col-lg-4';
+            card.className = 'col-md-6 col-lg-4 fade-in';
             card.dataset.normalizedLink = normalizeUrl(item.link);
-            card.dataset.originalUrl = item.link;
             
             const imageUrl = isAnalyzed ? (analysis.imageUrl || item.imageUrl) : item.imageUrl;
             const imgHtml = imageUrl ? `<img src="${imageUrl}" class="card-img-top" alt="news image" onerror="this.style.display='none'">` : '';
 
             if (isAnalyzed && analysis) {
-                // Card for analyzed article (shows analysis)
                 const rating = analysis.impact_rating || 'N/A';
                 let ratingClass = 'text-secondary';
                 if (parseInt(rating) >= 8) ratingClass = 'text-danger fw-bold';
                 else if (parseInt(rating) >= 5) ratingClass = 'text-warning fw-bold';
-                const uniqueId = 'details-inline-' + Math.random().toString(36).substr(2, 9);
+                const uniqueId = 'details-card-' + Math.random().toString(36).substr(2, 9);
                 
                 card.innerHTML = `
-                    <div class="card news-card">
+                    <div class="card news-card h-100">
                         ${imgHtml}
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="card-title text-light">${item.title}</h5>
-                            <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>
-                            <p class="card-text text-secondary flex-grow-1 small">${item.summary || 'Fetching...'}</p>
-                            <div class="mt-3 border-top border-secondary pt-3">
-                                <h6 class="text-warning small text-uppercase mb-1">AI Summary</h6>
-                                <p class="text-white small">${analysis.summary}</p>
+                        <div class="card-body">
+                            <h5 class="card-title text-truncate-2">${item.title}</h5>
+                            <h6 class="card-subtitle mb-2">${new Date(item.published).toLocaleString()}</h6>
+                            
+                            <div class="mt-3 pt-3 border-top border-secondary">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <span class="badge bg-dark border border-secondary text-secondary">Impact: <span class="${ratingClass}">${rating}/10</span></span>
-                                    <span class="text-secondary" style="font-size: 0.65rem">${analysis.modelUsed || ''}</span>
-                                    <button class="btn btn-sm btn-link text-warning p-0 text-decoration-none" style="font-size: 0.8rem" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">Show Impacts ▼</button>
+                                    <h6 class="text-warning small text-uppercase mb-0 fw-bold">AI Insight</h6>
+                                    <span class="badge bg-dark border border-secondary text-light">Impact: <span class="${ratingClass}">${rating}/10</span></span>
                                 </div>
+                                <p class="text-light small mb-3">${analysis.summary}</p>
+                                
+                                <button class="btn btn-sm btn-outline-warning w-100 mb-2" type="button" data-bs-toggle="collapse" data-bs-target="#${uniqueId}">Impact Details ▼</button>
                                 <div class="collapse" id="${uniqueId}">
-                                    <div class="card card-body bg-dark border border-secondary p-2">
-                                        <p class="mb-1 small"><strong class="text-info">Economic:</strong> ${analysis.economic_impact}</p>
-                                        <p class="mb-1 small"><strong class="text-info">Global:</strong> ${analysis.global_impact}</p>
-                                        <p class="mb-0 small"><strong class="text-info">Next:</strong> ${analysis.what_next}</p>
+                                    <div class="card card-body bg-dark border border-secondary p-2 mb-2 rounded">
+                                        <p class="mb-1 small"><strong class="text-info">Econ:</strong> ${analysis.economic_impact}</p>
+                                        <p class="mb-0 small"><strong class="text-info">Global:</strong> ${analysis.global_impact}</p>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="mt-3">
-                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100">Read Full Article</button>
+                                
+                                <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-secondary btn-sm w-100">Read Full Article</button>
                             </div>
                         </div>
                     </div>
                 `;
             } else {
-                // Card for unanalyzed article (shows loading placeholder)
                 card.innerHTML = `
-                    <div class="card news-card">
+                    <div class="card news-card h-100">
                         ${imgHtml}
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="card-title text-light">${item.title}</h5>
-                            <h6 class="card-subtitle mb-2 text-muted" style="font-size: 0.8rem">${new Date(item.published).toLocaleString()}</h6>
-                            <p class="card-text text-secondary flex-grow-1 small">${item.summary || 'Fetching...'}</p>
-                                                        <div class="ai-placeholder mt-3">
-                                                            <div class="d-flex align-items-center loading-label">
-                                                                <div class="spinner-grow spinner-grow-sm text-secondary me-2" role="status"></div>
-                                                                <span class="text-muted small">Queued for Background Analysis...</span>
-                                                            </div>
-                                                        </div>
-                                                        <div class="mt-3">
-                                                            <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100">Read Full Article</button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            `;
-                                        }
-                                        
-                                        return card;
-                                    }
-                                    
-                                    let pollInterval;
-                            
-                                    function startAutoPoll() {
-                                        if (pollInterval) clearInterval(pollInterval);
-                                        // Poll every 5 seconds to check for updates
-                                        pollInterval = setInterval(() => {
-                                            // Only poll if we are on a BBC tab
-                                            if (currentTab === 'bbc-new' || currentTab === 'bbc-summarized') {
-                                                // Pass true to bypass cache if needed, or false to just check for changes. 
-                                                // Actually, loadBBCArticlesSeparated fetches from API endpoints which return cached data.
-                                                // We just need to re-run the fetching logic to see if the server's list changed.
-                                                loadBBCSeparated(false); 
-                                            }
-                                        }, 5000);
-                                    }
-                            
-                            
-                                    function loadBBCSeparated(forceRefresh = false) {
-                                        // This function will be implemented below
-                                        loadBBCArticlesSeparated(forceRefresh);
-                                    }
-                                    function loadCNNMerged(forceRefresh = false) { loadFeed('cnn', '/api/news/cnn', '/api/news/merged', forceRefresh); }
-                                    function switchTab(tab) { 
-                                        currentTab = tab; 
-                                        if (tab === 'bbc-new') loadBBCSeparated(); 
-                                        if (tab === 'bbc-summarized') loadBBCSeparated(); // This will load both, but show the summarized tab
-                                        if (tab === 'cnn') loadCNNMerged(); 
-                                    }
-                                    function refreshCurrentTab() { 
-                                        if (currentTab === 'bbc-new' || currentTab === 'bbc-summarized') loadBBCSeparated(true); 
-                                        else if (currentTab === 'cnn') loadCNNMerged(true); 
-                                    }
-                            
-                                                                        function toggleRawData() {
-                                                                            const container = document.getElementById('raw-data-container');
-                                                                            container.classList.toggle('d-none');
-                                                                        }
-                                    
-                                                                        async function openAnalysisModal(title, url) {
-                                                                            const loader = document.getElementById('global-loader');
-                                                                            const modalElement = new bootstrap.Modal(document.getElementById('analysisModal'));
-                                                                            const rawContainer = document.getElementById('raw-data-container');
-                                                                            
-                                                                            // Reset UI
-                                                                            rawContainer.innerHTML = 'Loading raw data...';
-                                                                            rawContainer.classList.add('d-none');
-                                                                            
-                                                                            const titleEl = document.getElementById('modal-title');
-                                                                            const urgencyEl = document.getElementById('urgency-badge');      
-                                                                            const scoreEl = document.getElementById('impact-score');
-                                                                            const summaryEl = document.getElementById('ai-summary');
-                                                                            const econEl = document.getElementById('ai-econ');
-                                                                            const worldEl = document.getElementById('ai-world');
-                                                                            const articleEl = document.getElementById('article-text');       
-                                                                            const linkEl = document.getElementById('original-link');
-                                                                            titleEl.innerText = title; articleEl.innerText = "Fetching content..."; summaryEl.innerText = "Analyzing..."; econEl.innerText = "..."; worldEl.innerText = "..."; scoreEl.innerText = "-"; urgencyEl.className = "impact-badge bg-secondary"; urgencyEl.innerText = "PENDING"; linkEl.href = url;
-                                                                            loader.style.display = 'block';
-                                                                            try {
-                                                                                const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) });
-                                                                                
-                                                                                                                                // Capture raw text first for debugging
-                                                                                                                                const rawText = await response.text();
-                                                                                                                                
-                                                                                                                                let data;
-                                                                                                                                let imgDebug = "No Image URL found in response.";
-                                                                                                                                try {
-                                                                                                                                    data = JSON.parse(rawText);
-                                                                                                                                    if (data.image_url) {
-                                                                                                                                        imgDebug = "✅ Image URL Found: " + data.image_url;
-                                                                                                                                    }
-                                                                                                                                    // Pretty print for readability
-                                                                                                                                    rawContainer.innerText = imgDebug + "\n\n" + JSON.stringify(data, null, 2);
-                                                                                                                                } catch (e) {
-                                                                                                                                    console.error("Failed to parse response JSON", e);
-                                                                                                                                    rawContainer.innerText = "Non-JSON Response:\n" + rawText;
-                                                                                                                                }
-                                                                                                                    
-                                                                                                                                if (response.ok) {                                                                                    const ai = data.analysis;
-                                                                                    summaryEl.innerText = ai.summary || "No summary provided."; 
-                                                                                    econEl.innerText = ai.economic_impact || "N/A"; 
-                                                                                    worldEl.innerText = ai.global_impact || "N/A"; 
-                                                                                    scoreEl.innerText = ai.impact_rating || "?"; 
-                                                                                    articleEl.innerText = data.full_text || "No text.";      
-                                                                                    const urgency = (ai.urgency || "Unknown").toString();    
-                                                                                    urgencyEl.innerText = urgency.toUpperCase(); 
-                                                                                    urgencyEl.className = "impact-badge";
-                                                                                    const urg = urgency.toLowerCase(); 
-                                                                                    if (urg.includes('high') || urg.includes('critical')) {  
-                                                                                        urgencyEl.classList.add('bg-danger', 'text-white');  
-                                                                                    } else if (urg.includes('medium')) {
-                                                                                        urgencyEl.classList.add('bg-warning', 'text-dark');  
-                                                                                    } else {
-                                                                                        urgencyEl.classList.add('bg-success', 'text-white'); 
-                                                                                    }
-                                                                                } else {
-                                                                                    let errorMsg = data.error || data.message || `Error ${response.status}: ${response.statusText}`;
-                                                                                    articleEl.innerText = `Error: ${errorMsg}`;
-                                                                                }
-                                                                                modalElement.show();
-                                                                            } catch(e) { 
-                                                                                articleEl.innerText = "Connection Failed: " + e.message;     
-                                                                                modalElement.show(); 
-                                                                            } finally { 
-                                                                                loader.style.display = 'none'; 
-                                                                            }
-                                                                        }                            
-                                                                        async function loadModels() {
-                                                                            try {
-                                                                                const response = await fetch('/api/models');
-                                                                                if (!response.ok) throw new Error("Failed to load models");  
-                                                                                const models = await response.json();
-                                                                                
-                                                                                // Force add Gemini 2.5 Flash Lite if missing (User Preference)
-                                                                                if (!models.find(m => m.name === 'gemini-2.5-flash-lite')) {
-                                                                                    models.unshift({
-                                                                                        name: 'gemini-2.5-flash-lite',
-                                                                                        displayName: 'Gemini Flash Lite',
-                                                                                        version: '2.5'
-                                                                                    });
-                                                                                }
-                                    
-                                                                                const select = document.getElementById('model-select');      
-                                                                                select.innerHTML = '';
-                                                                                if (models.length === 0) {                    const opt = document.createElement('option'); opt.text = "Default (Gemini 1.5 Flash)"; opt.value = "gemini-1.5-flash"; select.add(opt);
+                        <div class="card-body">
+                            <h5 class="card-title text-truncate-2">${item.title}</h5>
+                            <h6 class="card-subtitle mb-2">${new Date(item.published).toLocaleString()}</h6>
+                            <p class="card-text small text-secondary">${item.summary || 'Fetching...'}</p>
+                            <div class="ai-placeholder mt-auto text-center py-2">
+                                <div class="spinner-grow spinner-grow-sm text-secondary me-2" role="status"></div>
+                                <span class="text-muted small">Queued for analysis...</span>
+                            </div>
+                            <button onclick="openAnalysisModal('${item.title.replace(/'/g, "'")}', '${item.link}')" class="btn btn-outline-secondary btn-sm w-100 mt-3">Read Full Article</button>
+                        </div>
+                    </div>
+                `;
+            }
+            return card;
+        }
+
+        let pollInterval;
+        function startAutoPoll() {
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(() => {
+                if (currentTab.includes('bbc')) loadBBCSeparated(false); 
+            }, 8000);
+        }
+
+        function loadBBCSeparated(forceRefresh = false) { loadBBCArticlesSeparated(forceRefresh); }
+        function loadCNNMerged(forceRefresh = false) { loadFeed('cnn', '/api/news/cnn', '/api/news/merged', forceRefresh); }
+        
+        function switchTab(tab) { 
+            currentTab = tab; 
+            if (tab === 'bbc-new') loadBBCSeparated(); 
+            if (tab === 'bbc-summarized') loadBBCSeparated(); 
+            if (tab === 'cnn') loadCNNMerged(); 
+        }
+        
+        function refreshCurrentTab() { 
+            if (currentTab.includes('bbc')) loadBBCSeparated(true); 
+            else if (currentTab === 'cnn') loadCNNMerged(true); 
+        }
+
+        function toggleRawData() { document.getElementById('raw-data-container').classList.toggle('d-none'); }
+        
+        async function openAnalysisModal(title, url) {
+            const loader = document.getElementById('global-loader');
+            const modalElement = new bootstrap.Modal(document.getElementById('analysisModal'));
+            const rawContainer = document.getElementById('raw-data-container');
+            
+            rawContainer.innerHTML = 'Loading raw data...';
+            rawContainer.classList.add('d-none');
+            
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('article-text').innerText = "Fetching content..."; 
+            document.getElementById('ai-summary').innerText = "Analyzing..."; 
+            document.getElementById('ai-econ').innerText = "..."; 
+            document.getElementById('ai-world').innerText = "..."; 
+            document.getElementById('impact-score').innerText = "-"; 
+            
+            const urgencyEl = document.getElementById('urgency-badge');
+            urgencyEl.className = "impact-badge bg-secondary"; 
+            urgencyEl.innerText = "PENDING"; 
+            document.getElementById('original-link').href = url;
+            
+            loader.style.display = 'flex'; // Flex for centering
+            try {
+                const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: url }) });
+                const rawText = await response.text();
+                
+                let data;
+                try {
+                    data = JSON.parse(rawText);
+                    rawContainer.innerText = JSON.stringify(data, null, 2);
+                } catch (e) {
+                    rawContainer.innerText = "Non-JSON Response:\n" + rawText;
+                }
+
+                if (response.ok) {
+                    const ai = data.analysis;
+                    document.getElementById('ai-summary').innerText = ai.summary || "No summary."; 
+                    document.getElementById('ai-econ').innerText = ai.economic_impact || "N/A"; 
+                    document.getElementById('ai-world').innerText = ai.global_impact || "N/A"; 
+                    document.getElementById('impact-score').innerText = ai.impact_rating || "?"; 
+                    document.getElementById('article-text').innerText = data.full_text || "No text.";      
+                    
+                    const urgency = (ai.urgency || "Unknown").toUpperCase();    
+                    urgencyEl.innerText = urgency; 
+                    urgencyEl.className = "impact-badge";
+                    if (urgency.includes('HIGH') || urgency.includes('CRITICAL')) urgencyEl.classList.add('bg-danger', 'text-white');  
+                    else if (urgency.includes('MEDIUM')) urgencyEl.classList.add('bg-warning', 'text-dark');  
+                    else urgencyEl.classList.add('bg-success', 'text-white'); 
                 } else {
-                    models.sort((a, b) => { if (a.name.includes('flash') && !b.name.includes('flash')) return -1; if (!a.name.includes('flash') && b.name.includes('flash')) return 1; return a.name.localeCompare(b.name); });
-                    models.forEach(model => {
-                        const opt = document.createElement('option'); opt.value = model.name; opt.text = model.displayName + " (" + model.version + ")";
-                        if (model.name === 'gemini-1.5-flash') opt.selected = true; 
-                        select.add(opt);
-                    });
-                }                                            initTooltips();
-                                        } catch (e) { console.error("Could not load models:", e); }
-                                    }
-                            
-                                    function initTooltips() {
-                                        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-                                        tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl) });
-                                    }
-                            
-                                    async function runImport() {
-                                        const textarea = document.getElementById('import-urls');
-                                        const statusDiv = document.getElementById('import-status');
-                                        const raw = textarea.value;
-                                        if (!raw.trim()) return;
-                                        
-                                        const urls = raw.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
-                                        if (urls.length === 0) {
-                                            statusDiv.innerHTML = '<span class="text-danger">No valid URLs found.</span>';
-                                            return;
-                                        }
-                            
-                                        statusDiv.innerHTML = '<span class="text-warning">Processing ' + urls.length + ' articles... This may take a moment.</span>';
-                                        const btn = document.querySelector('#importModal .btn-primary');
-                                        btn.disabled = true;
-                            
-                                        try {
-                                            const response = await fetch('/api/news/import', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ urls: urls })
-                                            });
-                                            
-                                            if (response.ok) {
-                                                const msg = await response.text();
-                                                statusDiv.innerHTML = '<span class="text-success">' + msg + '</span>';
-                                                setTimeout(() => {
-                                                    textarea.value = '';
-                                                    btn.disabled = false;
-                                                    bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();      
-                                                    refreshCurrentTab();
-                                                }, 2000);
-                                            } else {
-                                                statusDiv.innerHTML = '<span class="text-danger">Import failed: ' + response.statusText + '</span>';
-                                                btn.disabled = false;
-                                            }
-                                        } catch (e) {
-                                            statusDiv.innerHTML = '<span class="text-danger">Error: ' + e.message + '</span>';       
-                                            btn.disabled = false;
-                                        }
-                                    }
-                            
-                                    // Refresh button countdown
-                                    let refreshCountdown = 0;
-                                    let refreshTimer = null;
-                                    
-                                    function updateRefreshButton() {
-                                        const button = document.getElementById('refresh-button');
-                                        if (refreshCountdown > 0) {
-                                            button.textContent = `Refresh (${refreshCountdown}s)`;
-                                            button.disabled = true;
-                                            button.classList.remove('btn-outline-light');
-                                            button.classList.add('btn-secondary');
-                                        } else {
-                                            button.textContent = 'Refresh';
-                                            button.disabled = false;
-                                            button.classList.remove('btn-secondary');
-                                            button.classList.add('btn-outline-light');
-                                            if (refreshTimer) {
-                                                clearInterval(refreshTimer);
-                                                refreshTimer = null;
-                                            }
-                                        }
-                                    }
-                                    
-                                    function startRefreshCountdown() {
-                                        refreshCountdown = 30;
-                                        updateRefreshButton();
-                                        if (refreshTimer) clearInterval(refreshTimer);
-                                        refreshTimer = setInterval(() => {
-                                            refreshCountdown--;
-                                            updateRefreshButton();
-                                            if (refreshCountdown <= 0) {
-                                                clearInterval(refreshTimer);
-                                                refreshTimer = null;
-                                            }
-                                        }, 1000);
-                                    }
-                                    
-                                    // Override the refreshCurrentTab function
-                                    const originalRefreshCurrentTab = refreshCurrentTab;
-                                    refreshCurrentTab = function() {
-                                        if (refreshCountdown > 0) return;
-                                        startRefreshCountdown();
-                                        originalRefreshCurrentTab();
-                                    };
-                                    
-                                    // Set up event listener for refresh button
-                                    document.getElementById('refresh-button').addEventListener('click', refreshCurrentTab);
-                                    
-                                    window.onload = function() { 
-                                        loadModels(); 
-                                        loadBBCSeparated(); 
-                                        updateRefreshButton(); // Initial button state
-                                        startAutoPoll(); // Start auto-refreshing lists
-                                    };    </script>
-    <footer class="text-center mt-5 mb-4 text-secondary small">NewsHub v1.7.2 | Model used badges & Enhanced Fallback Logic</footer>
-    <!-- Deployment Trigger: Force refresh for model fix 2026-01-26 -->
+                    document.getElementById('article-text').innerText = `Error: ${data.error || 'Unknown error'}`;
+                }
+                modalElement.show();
+            } catch(e) { 
+                document.getElementById('article-text').innerText = "Connection Failed: " + e.message;     
+                modalElement.show(); 
+            } finally { 
+                loader.style.display = 'none'; 
+            }
+        }                            
+        
+        async function loadModels() {
+            try {
+                const response = await fetch('/api/models');
+                const models = response.ok ? await response.json() : [];
+                
+                if (!models.find(m => m.name === 'gemini-2.5-flash-lite')) {
+                    models.unshift({ name: 'gemini-2.5-flash-lite', displayName: 'Gemini Flash Lite', version: '2.5' });
+                }
+
+                const select = document.getElementById('model-select');      
+                select.innerHTML = '';
+                models.sort((a, b) => a.name.includes('flash') ? -1 : 1);
+                
+                models.forEach(model => {
+                    const opt = document.createElement('option'); 
+                    opt.value = model.name; 
+                    opt.text = `${model.displayName} (${model.version})`;
+                    if (model.name === 'gemini-1.5-flash') opt.selected = true; 
+                    select.add(opt);
+                });
+                initTooltips();
+            } catch (e) { console.error("Model load error:", e); }
+        }
+
+        function initTooltips() {
+            [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]')).map(t => new bootstrap.Tooltip(t));
+        }
+
+        async function runImport() {
+            const textarea = document.getElementById('import-urls');
+            const statusDiv = document.getElementById('import-status');
+            const urls = textarea.value.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+            
+            if (urls.length === 0) {
+                statusDiv.innerHTML = '<span class="text-danger">No valid URLs found.</span>';
+                return;
+            }
+
+            statusDiv.innerHTML = '<span class="text-warning">Processing ' + urls.length + ' articles...</span>';
+            const btn = document.querySelector('#importModal .btn-primary');
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/news/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ urls: urls }) });
+                const msg = await response.text();
+                statusDiv.innerHTML = `<span class="${response.ok ? 'text-success' : 'text-danger'}">${msg}</span>`;
+                if (response.ok) {
+                    setTimeout(() => {
+                        textarea.value = '';
+                        btn.disabled = false;
+                        bootstrap.Modal.getInstance(document.getElementById('importModal')).hide();      
+                        refreshCurrentTab();
+                    }, 2000);
+                } else btn.disabled = false;
+            } catch (e) {
+                statusDiv.innerHTML = '<span class="text-danger">Error: ' + e.message + '</span>';       
+                btn.disabled = false;
+            }
+        }
+
+        let refreshCountdown = 0;
+        let refreshTimer = null;
+        
+        function updateRefreshButton() {
+            const button = document.getElementById('refresh-button');
+            if (refreshCountdown > 0) {
+                button.textContent = `Wait (${refreshCountdown}s)`;
+                button.disabled = true;
+                button.classList.add('btn-secondary');
+                button.classList.remove('btn-outline-light');
+            } else {
+                button.textContent = 'Refresh';
+                button.disabled = false;
+                button.classList.remove('btn-secondary');
+                button.classList.add('btn-outline-light');
+            }
+        }
+        
+        document.getElementById('refresh-button').addEventListener('click', () => {
+             if (refreshCountdown > 0) return;
+             refreshCountdown = 30;
+             updateRefreshButton();
+             refreshTimer = setInterval(() => {
+                 refreshCountdown--;
+                 updateRefreshButton();
+                 if (refreshCountdown <= 0) {
+                     clearInterval(refreshTimer);
+                     refreshTimer = null;
+                 }
+             }, 1000);
+             refreshCurrentTab();
+        });
+        
+        window.onload = function() { 
+            loadModels(); 
+            loadBBCSeparated(); 
+            startAutoPoll(); 
+        };    
+    </script>
+    <footer class="text-center py-4 text-secondary small border-top border-dark mt-auto">
+        NewsHub v1.8 | Redesigned Theme | Auto-Fallback Active
+    </footer>
 </body>
 </html>
