@@ -336,6 +336,25 @@ public class NewsSystemService {
         }
     }
 // ...
+    public List<MergedNewsCluster> processAndClusterNews(List<NewsItem> items, String language, boolean cluster, String preferredModel) {
+        if (items == null || items.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        if (cluster) {
+            // Use batch processing which handles multiple items in one prompt efficiently
+            List<MergedNewsCluster> analyzedItems = processArticlesInBatch(items, language, preferredModel);
+            return groupSimilarArticles(analyzedItems);
+        } else {
+            // Process individually
+            List<MergedNewsCluster> results = new ArrayList<>();
+            for (NewsItem item : items) {
+                results.add(analyzeSingleArticle(item, language, preferredModel));
+            }
+            return results;
+        }
+    }
+
     private List<MergedNewsCluster> processArticlesInBatch(List<NewsItem> items, String language, String preferredModel) {
         // Original batch processing for small numbers of articles
         StringBuilder itemsText = new StringBuilder();
