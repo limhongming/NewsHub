@@ -62,3 +62,26 @@ The `application.properties` file is **Git-Ignored** for security.
 - **DO NOT** attempt to run the Spring Boot application locally
 - **ONLY** use `.\git-sync.bat` for deployment
 - The local PC is strictly for code editing and Git operations
+
+## Major Milestones (Jan 2026)
+
+### 1. Stability & AI Integration
+- **API 404 Fix:** Resolved issues with Google Gemini API 404 errors by implementing `java.net.URI` to prevent double-encoding of URL paths.
+- **Multi-Model Fallback:** Implemented a robust fallback system that cycles through Gemini 1.5/2.5 and DeepSeek (V3/R1) models if rate limits or errors occur.
+- **DeepSeek Support:** Integrated DeepSeek API as a high-priority model option for sophisticated news analysis.
+
+### 2. Enhanced Data Extraction
+- **Robust RSS Images:** Implemented aggressive XML parsing for BBC/CNN feeds, capturing images from `media:thumbnail` and `media:content` namespaces that standard RSS parsers often miss.
+- **JSON-LD Scraper:** Added a fallback scraper that extracts high-quality lead images from hidden JSON-LD script blocks on news websites.
+- **Referrer Policy Fix:** Added `no-referrer` policies to frontend image tags to bypass hotlinking protections from major news providers.
+
+### 3. Architecture & Persistence
+- **MySQL Migration:** Fully migrated from memory-based storage to a persistent MySQL schema with robust indexing.
+- **Unified History:** Updated the caching logic to retrieve news from *all* processed models, ensuring a continuous historical feed regardless of which model is currently selected.
+- **Categorization:** Added BBC category support (World, Business, Sport, etc.) with dedicated database isolation per category.
+
+### 4. Maintenance & Operations
+- **System Reset:** Added a "Full Reset" feature to purge all database caches and re-fetch fresh data according to the latest schemas.
+- **Backup System:** Implemented a one-click "Download JSON Backup" feature that exports the entire database in a clean, parsed format.
+- **Schema Documentation:** Created `DATABASE_SCHEMA.md` as a source of truth for the persistent layer to prevent future naming or structure errors.
+- **Kuala Lumpur Time:** Standardized the application to display article times in user-local time, which defaults to Kuala Lumpur (GMT+8) for targeted users.
