@@ -120,24 +120,30 @@ public class NewsService {
                             }
                         }
                         
-                        // 2. Try media:thumbnail (BBC specific)
+                        // 2. Try media:thumbnail (Broad check for any namespace)
                         if (imageUrl == null && entry.getForeignMarkup() != null) {
                             for (org.jdom2.Element element : entry.getForeignMarkup()) {
-                                if ("thumbnail".equals(element.getName()) && "http://search.yahoo.com/mrss/".equals(element.getNamespace().getURI())) {
+                                // Debug: Print first item's foreign markup
+                                if (i == 0) {
+                                    System.out.println("DEBUG: Markup: " + element.getName() + " NS: " + element.getNamespaceURI() + " Attr: " + element.getAttributes());
+                                }
+                                
+                                if ("thumbnail".equals(element.getName())) {
                                     imageUrl = element.getAttributeValue("url");
                                     if (imageUrl != null) break;
                                 }
                             }
                         }
                         
-                        // 3. Try media:content (CNN specific)
+                        // 3. Try media:content (Broad check)
                         if (imageUrl == null && entry.getForeignMarkup() != null) {
                             for (org.jdom2.Element element : entry.getForeignMarkup()) {
-                                if ("content".equals(element.getName()) && "http://search.yahoo.com/mrss/".equals(element.getNamespace().getURI())) {
-                                    String type = element.getAttributeValue("url");
-                                    if (type != null) {
-                                        imageUrl = type;
-                                        break;
+                                if ("content".equals(element.getName())) {
+                                    String type = element.getAttributeValue("type");
+                                    // Check for type image OR if medium is image
+                                    if ((type != null && type.startsWith("image")) || "image".equals(element.getAttributeValue("medium"))) {
+                                        imageUrl = element.getAttributeValue("url");
+                                        if (imageUrl != null) break;
                                     }
                                 }
                             }
