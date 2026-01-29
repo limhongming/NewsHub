@@ -201,4 +201,11 @@ public class NewsCacheService {
                               "Clusters: " + clusterDeleted + ", Articles: " + articleDeleted);
         }
     }
+
+    @Transactional
+    public void clearAllCaches() {
+        System.out.println("WARN: Clearing ALL database caches manually.");
+        clusterRepository.deleteAll();
+        articleRepository.deleteAll();
+    }
 }

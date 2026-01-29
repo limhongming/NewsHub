@@ -177,9 +177,16 @@ public class NewsController {
     }
 
     @GetMapping("/debug/articles")
-    public List<com.newsinsight.model.ArticleCacheEntity> getAllCachedArticles() {
-        return newsCacheService.getAllCachedArticles();
+    public ResponseEntity<List<ArticleCacheEntity>> getCachedArticles() {
+        return ResponseEntity.ok(newsCacheService.getAllCachedArticles());
     }
+
+    @DeleteMapping("/debug/reset")
+    public ResponseEntity<String> resetSystem() {
+        newsCacheService.clearAllCaches();
+        return ResponseEntity.ok("System Reset Complete: All caches cleared. The system will strictly follow the new schema and re-fetch fresh data.");
+    }
+}
 
     @PostMapping("/news/import")
     public ResponseEntity<?> manualImport(@RequestBody Map<String, List<String>> payload) {
