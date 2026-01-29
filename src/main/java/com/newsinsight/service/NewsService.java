@@ -12,12 +12,14 @@ import org.springframework.stereotype.Service;
 
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class NewsService {
 
-    private static final Map<String, String> CATEGORY_FEEDS = new java.util.HashMap<>();
+    private static final Map<String, String> CATEGORY_FEEDS = new HashMap<>();
     
     static {
         CATEGORY_FEEDS.put("world", "https://feeds.bbci.co.uk/news/world/rss.xml");
