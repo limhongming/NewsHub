@@ -108,14 +108,16 @@ public class NewsSchedulerService {
         Set<String> processedLinks = new HashSet<>();
         for (MergedNewsCluster cluster : currentCache) {
             if (cluster.related_links() != null) {
-                processedLinks.addAll(cluster.related_links());
+                for (String link : cluster.related_links()) {
+                    processedLinks.add(normalizeLink(link));
+                }
             }
         }
 
         // Find the FIRST item in rawItems that is NOT in processedLinks
         NewsItem candidate = null;
         for (NewsItem item : rawItems) {
-            if (!processedLinks.contains(item.link()) 
+            if (!processedLinks.contains(normalizeLink(item.link())) 
                 && !item.title().startsWith("System Error") 
                 && !item.title().startsWith("No News Found")) {
                 candidate = item;
@@ -136,16 +138,15 @@ public class NewsSchedulerService {
             TARGET_MODEL
         );
         
-            // Manually set related links as analyzeSnippet might not set them exactly as we want for tracking
-            if (newResult != null) {
-                newResult = new MergedNewsCluster(
-                    newResult.topic(), newResult.summary(), newResult.economic_impact(),
-                    newResult.global_impact(), newResult.impact_rating(), newResult.what_next(),
-                    Collections.singletonList(candidate.link()), newResult.modelUsed(),
-                    candidate.imageUrl(),
-                    candidate.published() != null ? candidate.published().toString() : null
-                );
-            }
+        // Manually set related links as analyzeSnippet might not set them exactly as we want for tracking
+        if (newResult != null) {
+            newResult = new MergedNewsCluster(
+                newResult.topic(), newResult.summary(), newResult.economic_impact(),
+                newResult.global_impact(), newResult.impact_rating(), newResult.what_next(),
+                Collections.singletonList(candidate.link()), newResult.modelUsed(),
+                candidate.imageUrl(),
+                candidate.published() != null ? candidate.published().toString() : null
+            );
         }
 
         if (newResult != null && !newResult.topic().contains("Error")) {
@@ -174,5 +175,10 @@ public class NewsSchedulerService {
             System.err.println("SCHEDULER: Failed to analyze item: " + candidate.title() + " -> " + error);
             return true; // We consumed a slot (even if failed)
         }
+    }
+    
+    private String normalizeLink(String url) {
+        if (url == null) return "";
+        return url.split("\\?")[0].toLowerCase().trim();
     }
 }
