@@ -188,6 +188,18 @@ public class NewsController {
         return ResponseEntity.ok("System Reset Complete: All caches cleared. The system will strictly follow the new schema and re-fetch fresh data.");
     }
 
+    @GetMapping("/debug/backup")
+    public ResponseEntity<Map<String, Object>> downloadBackup() {
+        Map<String, Object> backup = new java.util.HashMap<>();
+        backup.put("timestamp", java.time.LocalDateTime.now().toString());
+        backup.put("clusters", newsCacheService.getAllCachedClusters());
+        backup.put("articles", newsCacheService.getAllCachedArticles());
+        
+        return ResponseEntity.ok()
+            .header("Content-Disposition", "attachment; filename=newshub_backup_" + java.time.LocalDate.now() + ".json")
+            .body(backup);
+    }
+
     @PostMapping("/news/import")
     public ResponseEntity<?> manualImport(@RequestBody Map<String, List<String>> payload) {
         List<String> urls = payload.get("urls");

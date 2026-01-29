@@ -16,6 +16,7 @@
         <p class="text-muted">Viewing raw cached clusters from: <code>news_cache_clusters</code> (via /api/debug/clusters)</p>
         <div class="mb-3">
             <button class="btn btn-outline-primary" onclick="loadData()">Refresh Data</button>
+            <button class="btn btn-outline-success ms-2" onclick="downloadBackup()">📥 Download JSON Backup</button>
             <button class="btn btn-outline-danger ms-2" onclick="resetSystem()">⚠️ Reset System (Clear All)</button>
         </div>
         
@@ -156,6 +157,10 @@
             } catch (e) {
                 alert("Reset Failed: " + e.message);
             }
+        }
+
+        function downloadBackup() {
+            window.location.href = '/api/debug/backup';
         }
         
         // Auto load
