@@ -103,7 +103,7 @@
                                     <div class="small text-info mt-1">Econ: ${item.economic_impact}</div>
                                 </td>
                                 <td class="json-cell">${(item.related_links || []).join('\n')}</td>
-                                <td><span class="badge bg-dark border">${item.modelUsed}</span></td>
+                                <td><span class="badge bg-dark border">${item.model_used || entity.model}</span></td>
                                 <td>${imgCell}</td>
                             </tr>
                         `;
