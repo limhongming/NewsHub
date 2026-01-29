@@ -182,12 +182,6 @@ public class NewsController {
         return ResponseEntity.ok(newsCacheService.getAllCachedArticles());
     }
 
-    @DeleteMapping("/debug/reset")
-    public ResponseEntity<String> resetSystem() {
-        newsCacheService.clearAllCaches();
-        return ResponseEntity.ok("System Reset Complete: All caches cleared. The system will strictly follow the new schema and re-fetch fresh data.");
-    }
-
     @GetMapping("/debug/backup")
     public ResponseEntity<Map<String, Object>> downloadBackup() {
         Map<String, Object> backup = new java.util.HashMap<>();

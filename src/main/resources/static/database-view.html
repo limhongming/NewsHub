@@ -17,7 +17,6 @@
         <div class="mb-3">
             <button class="btn btn-outline-primary" onclick="loadData()">Refresh Data</button>
             <button class="btn btn-outline-success ms-2" onclick="downloadBackup()">📥 Download JSON Backup</button>
-            <button class="btn btn-outline-danger ms-2" onclick="resetSystem()">⚠️ Reset System (Clear All)</button>
         </div>
         
         <div class="table-responsive">
@@ -143,19 +142,6 @@
                 });
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error: ${e.message}</td></tr>`;
-            }
-        }
-        
-        async function resetSystem() {
-            if (!confirm("⚠️ ARE YOU SURE?\n\nThis will DELETE ALL cached news and analysis.\nThe system will start fresh, re-fetching news from BBC/CNN.\n\nThis is useful to fix schema/image issues.")) return;
-            
-            try {
-                const response = await fetch('/api/debug/reset', { method: 'DELETE' });
-                const msg = await response.text();
-                alert(msg);
-                loadData();
-            } catch (e) {
-                alert("Reset Failed: " + e.message);
             }
         }
 
