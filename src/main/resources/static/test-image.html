@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Test</title>
+    <style>body { background: #333; color: white; padding: 20px; }</style>
+</head>
+<body>
+    <h1>BBC Image Test</h1>
+    
+    <h3>1. Standard Image</h3>
+    <img src="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/bc9a/live/c225db00-fb58-11f0-a422-4ba8a094a8fa.jpg" alt="Test 1">
+    
+    <h3>2. No Referrer</h3>
+    <img src="https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/bc9a/live/c225db00-fb58-11f0-a422-4ba8a094a8fa.jpg" referrerpolicy="no-referrer" alt="Test 2">
+    
+    <h3>3. Dynamic JS Image</h3>
+    <div id="container"></div>
+    
+    <script>
+        const url = "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/bc9a/live/c225db00-fb58-11f0-a422-4ba8a094a8fa.jpg";
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = "Test 3";
+        document.getElementById('container').appendChild(img);
+    </script>
+</body>
+</html>
