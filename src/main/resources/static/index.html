@@ -737,73 +737,76 @@
             showStatusBar('bbc-new', `Fetching BBC (${currentCategory}) headlines...`, true);
             showStatusBar('bbc-summarized', 'Loading cached summaries...', true);
             
+            const itemMap = new Map();
+            let rawItems = [];
+            let summarizedClusters = [];
+            const summarizedLinks = new Set();
+
+            // 1. Fetch Raw News (RSS) - Independent
             try {
-                // 1. Fetch Server-Side Summarized/Analyzed News (Background Processed)
-                // Note: The summarized list in DB currently mixes ALL categories. 
-                // We might want to filter this in the future, but for now it shows all analyzed items.
+                const rawResponse = await fetchWithTimeout(`/api/news?category=${currentCategory}`);
+                if (rawResponse.ok) {
+                    rawItems = await rawResponse.json();
+                    if (rawItems) rawItems.forEach(i => itemMap.set(normalizeUrl(i.link), i));
+                } else {
+                    console.warn(`Raw news fetch failed: ${rawResponse.status}`);
+                    showStatusBar('bbc-new', `Network Issue (${rawResponse.status}). Showing cached summaries only.`, false);
+                }
+            } catch (e) {
+                console.error("Raw news fetch failed:", e);
+                showStatusBar('bbc-new', `Connection Error. Showing cached summaries only.`, false);
+            }
+
+            // 2. Fetch Summarized News (DB) - Independent
+            try {
                 const summarizedResponse = await fetchWithTimeout(`/api/news/bbc/merged?lang=${lang}&model=${model}&category=${currentCategory}`);
-                let summarizedClusters = [];
                 if (summarizedResponse.ok) {
                     summarizedClusters = await summarizedResponse.json();
+                } else {
+                    console.warn(`Summarized news fetch failed: ${summarizedResponse.status}`);
+                    showStatusBar('bbc-summarized', 'Failed to load summaries.', false);
                 }
 
-                // 2. Fetch Raw News for specific category
-                const rawResponse = await fetchWithTimeout(`/api/news?category=${currentCategory}`);
-                const rawItems = await rawResponse.json();
-                
-                newContainer.innerHTML = '';
-                summarizedContainer.innerHTML = '';
-                
-                const itemMap = new Map();
-                if (rawItems) rawItems.forEach(i => itemMap.set(normalizeUrl(i.link), i));
-                
                 // Render Summarized
+                summarizedContainer.innerHTML = '';
                 if (summarizedClusters && summarizedClusters.length > 0) {
                      summarizedClusters.sort((a, b) => {
                          const itemA = a.related_links?.[0] ? itemMap.get(normalizeUrl(a.related_links[0])) : null;
                          const itemB = b.related_links?.[0] ? itemMap.get(normalizeUrl(b.related_links[0])) : null;
+                         if (!itemA && !itemB) return 0;
                          return (itemB ? new Date(itemB.published) : 0) - (itemA ? new Date(itemA.published) : 0);
                      });
 
                      summarizedClusters.forEach(cluster => {
                          try {
-                             // Skip error clusters if you want, or show them
                              if (cluster.topic && cluster.topic.includes('Error')) return;
-    
-                             // Find matching raw item to get date/title if possible
-                             let originalItem = null;
-                             if (cluster.related_links && cluster.related_links.length > 0) {
-                                 originalItem = itemMap.get(normalizeUrl(cluster.related_links[0]));
-                             }
+                             if (cluster.related_links) cluster.related_links.forEach(l => summarizedLinks.add(normalizeUrl(l)));
                              
-                             // If we can't find the original item (maybe it fell off RSS), we construct a dummy one
+                             let originalItem = cluster.related_links?.[0] ? itemMap.get(normalizeUrl(cluster.related_links[0])) : null;
                              const item = originalItem || {
                                  title: cluster.topic,
-                                 link: cluster.related_links && cluster.related_links.length > 0 ? cluster.related_links[0] : '#',
-                                 published: new Date(), // We don't have date in cluster (should add it to DB schema later)
+                                 link: cluster.related_links?.[0] || '#',
+                                 published: new Date(), 
                                  summary: cluster.summary
                              };
-                             
-                             // Create card
-                             const card = createArticleCard(item, cluster, true);
-                             summarizedContainer.appendChild(card);
-                         } catch (err) {
-                             console.error("Failed to render cluster card:", cluster, err);
-                         }
+                             summarizedContainer.appendChild(createArticleCard(item, cluster, true));
+                         } catch (err) { console.error("Render error", err); }
                      });
-                     showStatusBar('bbc-summarized', `${summarizedClusters.length} analyzed articles.`, false);
+                     
+                     showStatusBar('bbc-summarized', `${summarizedClusters.length} summarized articles loaded.`, false);
                 } else {
-                     summarizedContainer.innerHTML = '<div class="col-12 text-center text-muted py-5">No summaries yet.</div>';
-                     showStatusBar('bbc-summarized', 'Empty.', false);
+                     summarizedContainer.innerHTML = '<div class="col-12 text-center text-muted">No summarized articles found yet.</div>';
+                     showStatusBar('bbc-summarized', 'No summaries available.', false);
                 }
+            } catch (e) {
+                console.error("Summarized fetch failed:", e);
+                showStatusBar('bbc-summarized', `Error loading summaries: ${e.message}`, false);
+            }
 
-                // Render New
-                const summarizedLinks = new Set();
-                if (summarizedClusters) {
-                    summarizedClusters.forEach(c => c.related_links?.forEach(l => summarizedLinks.add(normalizeUrl(l))));
-                }
-                
-                const newItems = (rawItems || []).filter(item => !summarizedLinks.has(normalizeUrl(item.link)));
+            // 3. Render Raw News (Unsummarized)
+            newContainer.innerHTML = '';
+            if (rawItems.length > 0) {
+                const newItems = rawItems.filter(item => !summarizedLinks.has(normalizeUrl(item.link)));
                 newItems.sort((a, b) => new Date(b.published) - new Date(a.published));
 
                 if (newItems.length > 0) {
@@ -814,14 +817,10 @@
                      bbcPendingCount = newItems.length;
                      showStatusBar('bbc-new', `${newItems.length} new articles available in ${currentCategory}.`, false);
                 } else {
-                     newContainer.innerHTML = '<div class="col-12 text-center text-muted py-5">All caught up!</div>';
+                     newContainer.innerHTML = '<div class="col-12 text-center text-muted">All current news has been summarized.</div>';
                      bbcPendingCount = 0;
-                     showStatusBar('bbc-new', 'No new articles.', false);
+                     showStatusBar('bbc-new', 'Up to date.', false);
                 }
-                
-            } catch (error) {
-                console.error(error);
-                showStatusBar('bbc-new', 'Network Error', false);
             }
         }
         
