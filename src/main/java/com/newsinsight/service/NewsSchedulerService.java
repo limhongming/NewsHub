@@ -136,14 +136,16 @@ public class NewsSchedulerService {
             TARGET_MODEL
         );
         
-        // Manually set related links as analyzeSnippet might not set them exactly as we want for tracking
-        if (newResult != null) {
-            newResult = new MergedNewsCluster(
-                newResult.topic(), newResult.summary(), newResult.economic_impact(),
-                newResult.global_impact(), newResult.impact_rating(), newResult.what_next(),
-                Collections.singletonList(candidate.link()), newResult.modelUsed(),
-                candidate.imageUrl()
-            );
+            // Manually set related links as analyzeSnippet might not set them exactly as we want for tracking
+            if (newResult != null) {
+                newResult = new MergedNewsCluster(
+                    newResult.topic(), newResult.summary(), newResult.economic_impact(),
+                    newResult.global_impact(), newResult.impact_rating(), newResult.what_next(),
+                    Collections.singletonList(candidate.link()), newResult.modelUsed(),
+                    candidate.imageUrl(),
+                    candidate.published() != null ? candidate.published().toString() : null
+                );
+            }
         }
 
         if (newResult != null && !newResult.topic().contains("Error")) {

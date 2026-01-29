@@ -329,10 +329,10 @@ public class NewsSystemService {
             return new MergedNewsCluster(
                 (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
                 (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
-                Collections.emptyList(), result.model(), null
+                Collections.emptyList(), result.model(), null, null
             );
         } catch (Exception e) {
-            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error", null);
+            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error", null, null);
         }
     }
 // ...

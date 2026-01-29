@@ -783,11 +783,21 @@
                              if (cluster.related_links) cluster.related_links.forEach(l => summarizedLinks.add(normalizeUrl(l)));
                              
                              let originalItem = cluster.related_links?.[0] ? itemMap.get(normalizeUrl(cluster.related_links[0])) : null;
+                             
+                             // Use published date from cluster if available, otherwise from raw item, otherwise now
+                             let pubDate = new Date();
+                             if (cluster.published_date) {
+                                 pubDate = new Date(cluster.published_date);
+                             } else if (originalItem && originalItem.published) {
+                                 pubDate = new Date(originalItem.published);
+                             }
+
                              const item = originalItem || {
                                  title: cluster.topic,
                                  link: cluster.related_links?.[0] || '#',
-                                 published: new Date(), 
-                                 summary: cluster.summary
+                                 published: pubDate, 
+                                 summary: cluster.summary,
+                                 imageUrl: cluster.image_url // Ensure image is passed if raw item missing
                              };
                              summarizedContainer.appendChild(createArticleCard(item, cluster, true));
                          } catch (err) { console.error("Render error", err); }
