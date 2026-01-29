@@ -36,6 +36,10 @@ public class NewsService {
     // CNN disabled per user request to focus on BBC
     // private static final String CNN_RSS_FEED = "http://rss.cnn.com/rss/edition.rss"; 
 
+    public java.util.Set<String> getCategoryNames() {
+        return CATEGORY_FEEDS.keySet();
+    }
+
     public List<NewsItem> getTopNews() {
         return getNewsByCategory("world");
     }

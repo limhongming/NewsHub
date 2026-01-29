@@ -9,8 +9,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class NewsSchedulerService {
@@ -23,42 +24,53 @@ public class NewsSchedulerService {
     private static final String TARGET_LANG = "English";
     private static final String TARGET_MODEL = "deepseek-chat"; 
 
-    // Local cache for RSS feeds to avoid over-fetching from source
-    private List<NewsItem> cachedBBCRaw = new ArrayList<>();
-    private long lastBBCFetch = 0;
-    private List<NewsItem> cachedCNNRaw = new ArrayList<>();
-    private long lastCNNFetch = 0;
+    // Category Management
+    private final List<String> categories = new ArrayList<>();
+    private int currentCategoryIndex = 0;
+
+    // Local cache for RSS feeds per category
+    private final Map<String, List<NewsItem>> categoryRawCache = new ConcurrentHashMap<>();
+    private final Map<String, Long> categoryLastFetch = new ConcurrentHashMap<>();
+    
     private static final long RSS_FETCH_INTERVAL = 300000; // 5 minutes
 
     public NewsSchedulerService(NewsService newsService, NewsSystemService newsSystemService, NewsCacheService newsCacheService) {
         this.newsService = newsService;
         this.newsSystemService = newsSystemService;
         this.newsCacheService = newsCacheService;
+        
+        // Initialize categories
+        this.categories.addAll(newsService.getCategoryNames());
+        // Ensure 'world' is first or present
+        if (!this.categories.contains("world")) {
+            this.categories.add(0, "world");
+        }
+        Collections.sort(this.categories); // consistent order
     }
 
     /**
      * "Real-Time" Processor.
-     * Runs every 4.5 seconds to strictly adhere to ~13-15 RPM limit while providing
-     * continuous updates.
-     * 
-     * Strategy:
-     * 1. Check if we need to refresh raw RSS feeds (every 5 mins).
-     * 2. Look for ONE un-analyzed article from BBC.
-     * 3. If found, analyze it, save, and STOP (wait for next cycle).
-     * 4. If no BBC work, look for ONE un-analyzed article from CNN.
-     * 5. If found, analyze it, save, and STOP.
+     * Runs every 4.5 seconds to strictly adhere to rate limits.
+     * Cycles through categories (World -> Sport -> Business -> ...) processing one item at a time.
      */
     @Scheduled(fixedDelay = 4500) 
     public void processNextArticle() {
+        if (categories.isEmpty()) return;
+
         try {
-            // 1. Refresh Raw Feeds if needed
-            refreshFeedsIfNeeded();
+            // 1. Pick current category
+            String currentCategory = categories.get(currentCategoryIndex);
+            
+            // 2. Refresh feed for this category if needed
+            refreshFeedIfNeeded(currentCategory);
+            
+            // 3. Process one item for this category
+            // Tab name format: "bbc-world", "bbc-sport", etc.
+            String tabName = "bbc-" + currentCategory.toLowerCase();
+            processOneItem(tabName, categoryRawCache.getOrDefault(currentCategory, new ArrayList<>()));
 
-            // 2. Try to process one BBC item
-            if (processOneItem("bbc", cachedBBCRaw, false)) return;
-
-            // 3. CNN processing disabled per user request
-            // if (processOneItem("cnn", cachedCNNRaw, true)) return;
+            // 4. Move to next category for next run
+            currentCategoryIndex = (currentCategoryIndex + 1) % categories.size();
 
         } catch (Exception e) {
             System.err.println("SCHEDULER: Error in process cycle: " + e.getMessage());
@@ -66,32 +78,29 @@ public class NewsSchedulerService {
         }
     }
 
-    private void refreshFeedsIfNeeded() {
+    private void refreshFeedIfNeeded(String category) {
         long now = System.currentTimeMillis();
+        long lastFetch = categoryLastFetch.getOrDefault(category, 0L);
+        List<NewsItem> cached = categoryRawCache.get(category);
         
-        if (now - lastBBCFetch > RSS_FETCH_INTERVAL || cachedBBCRaw.isEmpty()) {
-            System.out.println("SCHEDULER: Refreshing BBC RSS feed...");
-            List<NewsItem> items = newsService.getTopNews();
-            if (!items.isEmpty()) {
-                cachedBBCRaw = items;
-                lastBBCFetch = now;
-            }
-        }
-
-        if (now - lastCNNFetch > RSS_FETCH_INTERVAL || cachedCNNRaw.isEmpty()) {
-            System.out.println("SCHEDULER: Refreshing CNN RSS feed...");
-            List<NewsItem> items = newsService.getCNNNews();
-            if (!items.isEmpty()) {
-                cachedCNNRaw = items;
-                lastCNNFetch = now;
+        if (now - lastFetch > RSS_FETCH_INTERVAL || cached == null || cached.isEmpty()) {
+            System.out.println("SCHEDULER: Refreshing RSS feed for category: " + category);
+            try {
+                List<NewsItem> items = newsService.getNewsByCategory(category);
+                if (!items.isEmpty()) {
+                    categoryRawCache.put(category, items);
+                    categoryLastFetch.put(category, now);
+                }
+            } catch (Exception e) {
+                System.err.println("SCHEDULER: Failed to fetch RSS for " + category + ": " + e.getMessage());
             }
         }
     }
 
-    private boolean processOneItem(String tabName, List<NewsItem> rawItems, boolean useClusteringLogic) {
+    private boolean processOneItem(String tabName, List<NewsItem> rawItems) {
         if (rawItems == null || rawItems.isEmpty()) return false;
 
-        // Get current cached results
+        // Get current cached results for this specific category tab
         List<MergedNewsCluster> currentCache = newsCacheService.getCachedNews(tabName, TARGET_LANG, TARGET_MODEL);
         if (currentCache == null) currentCache = new ArrayList<>();
 
@@ -119,35 +128,22 @@ public class NewsSchedulerService {
         // Analyze THIS candidate
         System.out.println("SCHEDULER: Analyzing new item for " + tabName + ": " + candidate.title());
         
-        MergedNewsCluster newResult;
+        // For BBC, use snippet analysis
+        MergedNewsCluster newResult = newsSystemService.analyzeSnippet(
+            candidate.title(), 
+            candidate.summary(), 
+            TARGET_LANG, 
+            TARGET_MODEL
+        );
         
-        if (useClusteringLogic) {
-            // For CNN, we use the processAndClusterNews but with a single item list
-            // This reuses the logic but effectively does single-item analysis
-            List<MergedNewsCluster> results = newsSystemService.processAndClusterNews(
-                Collections.singletonList(candidate), 
-                TARGET_LANG, 
-                true, // cluster=true (though only 1 item)
-                TARGET_MODEL
+        // Manually set related links as analyzeSnippet might not set them exactly as we want for tracking
+        if (newResult != null) {
+            newResult = new MergedNewsCluster(
+                newResult.topic(), newResult.summary(), newResult.economic_impact(),
+                newResult.global_impact(), newResult.impact_rating(), newResult.what_next(),
+                Collections.singletonList(candidate.link()), newResult.modelUsed(),
+                candidate.imageUrl()
             );
-            newResult = (results != null && !results.isEmpty()) ? results.get(0) : null;
-        } else {
-            // For BBC, use snippet analysis
-            newResult = newsSystemService.analyzeSnippet(
-                candidate.title(), 
-                candidate.summary(), 
-                TARGET_LANG, 
-                TARGET_MODEL
-            );
-            // Manually set related links as analyzeSnippet might not set them exactly as we want for tracking
-            if (newResult != null) {
-                newResult = new MergedNewsCluster(
-                    newResult.topic(), newResult.summary(), newResult.economic_impact(),
-                    newResult.global_impact(), newResult.impact_rating(), newResult.what_next(),
-                    Collections.singletonList(candidate.link()), newResult.modelUsed(),
-                    candidate.imageUrl()
-                );
-            }
         }
 
         if (newResult != null && !newResult.topic().contains("Error")) {
@@ -158,15 +154,14 @@ public class NewsSchedulerService {
                 newList.addAll(currentCache);
             }
             
-            // Limit list size to prevent infinite growth (keep last 500)
-            if (newList.size() > 500) {
-                newList = newList.subList(0, 500);
+            // Limit list size to prevent infinite growth (keep last 100 per category)
+            if (newList.size() > 100) {
+                newList = newList.subList(0, 100);
             }
 
-            System.out.println("SCHEDULER: Analysis success for: " + candidate.title() + ". Saving " + newList.size() + " items to DB...");
+            System.out.println("SCHEDULER: Analysis success for: " + candidate.title() + ". Saving to DB (" + tabName + ")...");
             try {
                 newsCacheService.cacheNews(tabName, TARGET_LANG, TARGET_MODEL, newList);
-                System.out.println("SCHEDULER: DB Save Complete for " + tabName);
             } catch (Exception e) {
                 System.err.println("SCHEDULER: DB Save FAILED: " + e.getMessage());
                 e.printStackTrace();
@@ -175,18 +170,6 @@ public class NewsSchedulerService {
         } else {
             String error = (newResult != null) ? newResult.summary() : "Result was null";
             System.err.println("SCHEDULER: Failed to analyze item: " + candidate.title() + " -> " + error);
-            // We might want to mark it as ignored so we don't retry forever?
-            // For now, we'll just return true (work attempted) and it will retry next time or we can add a dummy error entry.
-            // To prevent blocking, let's add a dummy entry so we skip it next time.
-            /*
-            MergedNewsCluster errorEntry = new MergedNewsCluster(
-                "Error Processing", "Failed to analyze: " + candidate.title(), 
-                "N/A", "N/A", "0", "N/A", Collections.singletonList(candidate.link()), "System"
-            );
-            List<MergedNewsCluster> newList = new ArrayList<>(currentCache);
-            newList.add(errorEntry); // Add to end or beginning?
-            newsCacheService.cacheNews(tabName, TARGET_LANG, TARGET_MODEL, newList);
-            */
             return true; // We consumed a slot (even if failed)
         }
     }
