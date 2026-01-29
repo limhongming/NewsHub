@@ -82,8 +82,9 @@
                     const clusters = JSON.parse(entity.dataJson || '[]');
                     clusters.forEach((item) => {
                         let imgCell = '<span class="text-muted">None</span>';
-                        if (item.imageUrl) {
-                            imgCell = `<a href="${item.imageUrl}" target="_blank"><img src="${item.imageUrl}" style="height: 50px; border-radius: 4px;"></a>`;
+                        const url = item.image_url || item.imageUrl;
+                        if (url) {
+                            imgCell = `<a href="${url}" target="_blank"><img src="${url}" style="height: 50px; border-radius: 4px;" onerror="this.style.display='none'"></a>`;
                         }
                         
                         const row = `
