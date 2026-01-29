@@ -180,9 +180,9 @@ public class NewsCacheService {
 
     private String generateCacheKey(String tab, String lang, String model) {
         return String.format("%s_%s_%s", 
-            tab.replaceAll("[^a-zA-Z0-9._-]", ""), 
-            lang.replaceAll("[^a-zA-Z0-9._-]", ""), 
-            model.replaceAll("[^a-zA-Z0-9._-]", ""));
+            tab.replaceAll("[^a-zA-Z0-9]", ""), 
+            lang.replaceAll("[^a-zA-Z0-9]", ""), 
+            model.replaceAll("[^a-zA-Z0-9]", ""));
     }
 
     private String generateUrlHash(String url) {
