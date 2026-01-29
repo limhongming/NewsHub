@@ -17,12 +17,30 @@ import java.util.List;
 @Service
 public class NewsService {
 
-    private static final String BBC_RSS_FEED = "https://feeds.bbci.co.uk/news/world/rss.xml"; // Changed to World News for more volume
+    private static final Map<String, String> CATEGORY_FEEDS = new java.util.HashMap<>();
+    
+    static {
+        CATEGORY_FEEDS.put("world", "https://feeds.bbci.co.uk/news/world/rss.xml");
+        CATEGORY_FEEDS.put("sport", "https://feeds.bbci.co.uk/sport/rss.xml");
+        CATEGORY_FEEDS.put("business", "https://feeds.bbci.co.uk/news/business/rss.xml");
+        CATEGORY_FEEDS.put("innovation", "https://feeds.bbci.co.uk/news/technology/rss.xml");
+        CATEGORY_FEEDS.put("health", "https://feeds.bbci.co.uk/news/health/rss.xml");
+        CATEGORY_FEEDS.put("culture", "https://bbc.com/culture/feed.rss");
+        CATEGORY_FEEDS.put("arts", "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml");
+        CATEGORY_FEEDS.put("travel", "https://bbc.com/travel/feed.rss");
+        CATEGORY_FEEDS.put("earth", "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml");
+    }
+
     // CNN disabled per user request to focus on BBC
     // private static final String CNN_RSS_FEED = "http://rss.cnn.com/rss/edition.rss"; 
 
     public List<NewsItem> getTopNews() {
-        return fetchNewsFromRss(BBC_RSS_FEED, 50); // Increased to 50 for more recent news
+        return getNewsByCategory("world");
+    }
+    
+    public List<NewsItem> getNewsByCategory(String category) {
+        String feedUrl = CATEGORY_FEEDS.getOrDefault(category.toLowerCase(), CATEGORY_FEEDS.get("world"));
+        return fetchNewsFromRss(feedUrl, 50);
     }
 
     public List<NewsItem> getCNNNews() {

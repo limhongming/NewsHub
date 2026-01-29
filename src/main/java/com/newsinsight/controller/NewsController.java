@@ -29,9 +29,9 @@ public class NewsController {
         this.newsCacheService = newsCacheService;
     }
 
-    @GetMapping("/news")
-    public List<NewsItem> getNews() {
-        return newsService.getTopNews();
+    @GetMapping
+    public List<NewsItem> getNews(@RequestParam(defaultValue = "world") String category) {
+        return newsService.getNewsByCategory(category);
     }
 
     @GetMapping("/models")

@@ -339,21 +339,34 @@
         </div>
     </div>
 
-    <div class="container pb-5">
+    <div class="container">
         
         <ul class="nav nav-tabs" id="newsTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="bbc-new-tab" data-bs-toggle="tab" data-bs-target="#bbc-new-pane" type="button" role="tab" onclick="switchTab('bbc-new')">BBC AI Analyzed</button>
+                <button class="nav-link active" id="bbc-new-tab" data-bs-toggle="tab" data-bs-target="#bbc-new-pane" type="button" role="tab" aria-selected="true" onclick="switchTab('bbc-new')">BBC AI Analyzed</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="bbc-summarized-tab" data-bs-toggle="tab" data-bs-target="#bbc-summarized-pane" type="button" role="tab" onclick="switchTab('bbc-summarized')">BBC Summarized</button>
+                <button class="nav-link" id="bbc-summarized-tab" data-bs-toggle="tab" data-bs-target="#bbc-summarized-pane" type="button" role="tab" aria-selected="false" onclick="switchTab('bbc-summarized')">BBC Summarized</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="cnn-tab" data-bs-toggle="tab" data-bs-target="#cnn-pane" type="button" role="tab" onclick="switchTab('cnn')">CNN AI Analyzed</button>
+                <button class="nav-link" id="cnn-tab" data-bs-toggle="tab" data-bs-target="#cnn-pane" type="button" role="tab" aria-selected="false" onclick="switchTab('cnn')">CNN AI Analyzed</button>
             </li>
         </ul>
 
-        <div class="tab-content pt-3" id="myTabContent">
+        <!-- BBC Category Filters -->
+        <div id="bbc-category-nav" class="mb-3 d-flex gap-2 flex-wrap justify-content-center">
+            <button class="btn btn-sm btn-outline-warning active" onclick="switchCategory('world', this)">World</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="switchCategory('sport', this)">Sport</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="switchCategory('business', this)">Business</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="switchCategory('innovation', this)">Innovation</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="switchCategory('health', this)">Health</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="switchCategory('culture', this)">Culture</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="switchCategory('arts', this)">Arts</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="switchCategory('travel', this)">Travel</button>
+            <button class="btn btn-sm btn-outline-secondary" onclick="switchCategory('earth', this)">Earth</button>
+        </div>
+
+        <div class="tab-content" id="myTabContent">
             <!-- BBC NEW PANE -->
             <div class="tab-pane fade show active" id="bbc-new-pane" role="tabpanel">
                 <div id="bbc-new-status-bar" class="d-none"></div>
@@ -428,14 +441,29 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentTab = 'bbc-new';
+        let currentCategory = 'world';
+
         let bbcPendingCount = 0;
 
         function normalizeUrl(url) {
             if (!url) return '';
             return url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
         }
+        
+        function switchCategory(cat, btn) {
+            currentCategory = cat;
+            // Update UI
+            document.querySelectorAll('#bbc-category-nav button').forEach(b => {
+                b.classList.remove('active', 'btn-outline-warning');
+                b.classList.add('btn-outline-secondary');
+            });
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('active', 'btn-outline-warning');
+            
+            // Reload
+            loadBBCSeparated(true);
+        }
 
-        // --- Caching Logic ---
         function getCachedClusters(tab, lang, model) {
             const key = `clusters_${tab}_${lang}_${model}`;
             const item = localStorage.getItem(key);
@@ -671,14 +699,20 @@
             const newContainer = document.getElementById('bbc-new-container');
             const summarizedContainer = document.getElementById('bbc-summarized-container');
             
-            showStatusBar('bbc-new', 'Checking for new articles...', true);
-            showStatusBar('bbc-summarized', 'Loading summaries...', true);
+            showStatusBar('bbc-new', `Fetching BBC (${currentCategory}) headlines...`, true);
+            showStatusBar('bbc-summarized', 'Loading cached summaries...', true);
             
             try {
+                // 1. Fetch Server-Side Summarized/Analyzed News (Background Processed)
+                // The backend scheduler now maintains this list in the database.
                 const summarizedResponse = await fetch(`/api/news/bbc/merged?lang=${lang}&model=${model}`);
-                let summarizedClusters = summarizedResponse.ok ? await summarizedResponse.json() : [];
+                let summarizedClusters = [];
+                if (summarizedResponse.ok) {
+                    summarizedClusters = await summarizedResponse.json();
+                }
 
-                const rawResponse = await fetch('/api/news');
+                // 2. Fetch Raw News for specific category
+                const rawResponse = await fetch(`/api/news?category=${currentCategory}`);
                 const rawItems = await rawResponse.json();
                 
                 newContainer.innerHTML = '';
@@ -722,9 +756,12 @@
                 newItems.sort((a, b) => new Date(b.published) - new Date(a.published));
 
                 if (newItems.length > 0) {
-                     newItems.forEach(item => newContainer.appendChild(createArticleCard(item, null, false)));
+                     newItems.forEach(item => {
+                         const card = createArticleCard(item, null, false);
+                         newContainer.appendChild(card);
+                     });
                      bbcPendingCount = newItems.length;
-                     showStatusBar('bbc-new', `${newItems.length} articles waiting for analysis.`, false);
+                     showStatusBar('bbc-new', `${newItems.length} new articles available in ${currentCategory}.`, false);
                 } else {
                      newContainer.innerHTML = '<div class="col-12 text-center text-muted py-5">All caught up!</div>';
                      bbcPendingCount = 0;
@@ -807,20 +844,29 @@
             }, 8000);
         }
 
-        function loadBBCSeparated(forceRefresh = false) { loadBBCArticlesSeparated(forceRefresh); }
-        function loadCNNMerged(forceRefresh = false) { loadFeed('cnn', '/api/news/cnn', '/api/news/merged', forceRefresh); }
-        
-        function switchTab(tab) { 
-            currentTab = tab; 
-            if (tab === 'bbc-new') loadBBCSeparated(); 
-            if (tab === 'bbc-summarized') loadBBCSeparated(); 
-            if (tab === 'cnn') loadCNNMerged(); 
-        }
-        
-        function refreshCurrentTab() { 
-            if (currentTab.includes('bbc')) loadBBCSeparated(true); 
-            else if (currentTab === 'cnn') loadCNNMerged(true); 
-        }
+                                    function loadBBCSeparated(forceRefresh = false) {
+                                        // This function will be implemented below
+                                        loadBBCArticlesSeparated(forceRefresh);
+                                    }
+                                    function loadCNNMerged(forceRefresh = false) { loadFeed('cnn', '/api/news/cnn', '/api/news/merged', forceRefresh); }
+                                    function switchTab(tab) { 
+                                        currentTab = tab; 
+                                        const catNav = document.getElementById('bbc-category-nav');
+                                        if (tab === 'bbc-new' || tab === 'bbc-summarized') {
+                                            catNav.classList.remove('d-none');
+                                            catNav.classList.add('d-flex');
+                                            loadBBCSeparated(); 
+                                        }
+                                        if (tab === 'cnn') {
+                                            catNav.classList.add('d-none');
+                                            catNav.classList.remove('d-flex');
+                                            loadCNNMerged(); 
+                                        }
+                                    }
+                                    function refreshCurrentTab() { 
+                                        if (currentTab === 'bbc-new' || currentTab === 'bbc-summarized') loadBBCSeparated(true); 
+                                        else if (currentTab === 'cnn') loadCNNMerged(true); 
+                                    }
 
         function toggleRawData() { document.getElementById('raw-data-container').classList.toggle('d-none'); }
         
