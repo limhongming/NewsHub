@@ -969,19 +969,28 @@
                 const response = await fetch('/api/models');
                 const models = response.ok ? await response.json() : [];
                 
-                if (!models.find(m => m.name === 'gemini-2.5-flash-lite')) {
-                    models.unshift({ name: 'gemini-2.5-flash-lite', displayName: 'Gemini Flash Lite', version: '2.5' });
+                // Ensure DeepSeek is present
+                if (!models.find(m => m.name === 'deepseek-chat')) {
+                    models.unshift({ name: 'deepseek-chat', displayName: 'DeepSeek V3', version: 'V3' });
                 }
 
                 const select = document.getElementById('model-select');      
                 select.innerHTML = '';
-                models.sort((a, b) => a.name.includes('flash') ? -1 : 1);
                 
-                    models.forEach(model => {
-                        const opt = document.createElement('option'); opt.value = model.name; opt.text = model.displayName + " (" + model.version + ")";
-                        if (model.name === 'deepseek-chat') opt.selected = true; 
-                        select.add(opt);
-                    });
+                // Sort: DeepSeek first, then others
+                models.sort((a, b) => {
+                    if (a.name === 'deepseek-chat') return -1;
+                    if (b.name === 'deepseek-chat') return 1;
+                    return a.name.localeCompare(b.name);
+                });
+                
+                models.forEach(model => {
+                    const opt = document.createElement('option'); 
+                    opt.value = model.name; 
+                    opt.text = model.displayName + " (" + model.version + ")";
+                    if (model.name === 'deepseek-chat') opt.selected = true; 
+                    select.add(opt);
+                });
                 initTooltips();
             } catch (e) { console.error("Model load error:", e); }
         }
