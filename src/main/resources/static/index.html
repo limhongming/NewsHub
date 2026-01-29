@@ -637,27 +637,44 @@
         }
 
         // --- Data Loading ---
+        async function fetchWithTimeout(resource, options = {}) {
+            const { timeout = 15000 } = options;
+            
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            
+            const response = await fetch(resource, {
+                ...options,
+                signal: controller.signal  
+            });
+            clearTimeout(id);
+            return response;
+        }
+
         async function loadFeed(tabName, rawEndpoint, aiEndpoint, forceRefresh = false) {
             const container = document.getElementById(tabName + '-container');
             const lang = document.getElementById('lang-select').value;
             const model = document.getElementById('model-select').value;
             showStatusBar(tabName, 'Fetching latest headlines...', true);
             try {
-                const rawResponse = await fetch(rawEndpoint);
+                const rawResponse = await fetchWithTimeout(rawEndpoint);
                 const rawItems = await rawResponse.json();
                 const isBBC = tabName === 'bbc';
                 renderRawItems(container, rawItems, isBBC);
 
+                // For BBC tab, use per-article analysis with caching
                 if (isBBC) {
                     await loadBBCArticlesWithCache(container, rawItems, lang, model, forceRefresh);
                     return;
                 }
 
+                // For CNN tab, use the existing cluster-based approach with cache
                 if (!forceRefresh) {
                     const cached = getCachedClusters(tabName, lang, model);
                     if (cached) {
-                         if (!isBBC && bbcPendingCount > 0) {
-                            showStatusBar(tabName, `<strong>Paused:</strong> ${bbcPendingCount} BBC articles pending analysis.`, false);
+                        // Check if we should warn about BBC priority
+                        if (!isBBC && bbcPendingCount > 0) {
+                            showStatusBar(tabName, `<strong>Notice:</strong> ${bbcPendingCount} BBC articles are currently being analyzed. CNN analysis is paused until BBC is complete.`, false);
                         } else {
                             showStatusBar(tabName, `Using cached analysis (${new Date(cached.timestamp).toLocaleTimeString()})`, false);
                         }
@@ -666,30 +683,47 @@
                     }
                 }
                 
-                showStatusBar(tabName, 'Synthesizing clusters...', true);
+                // Try to get AI analysis (cached or fresh)
+                showStatusBar(tabName, `Fetching AI analysis...`, true);
+                
+                // Warn about BBC priority if getting fresh data
                 if (!isBBC && bbcPendingCount > 0) {
-                     showStatusBar(tabName, `<strong>Waiting:</strong> BBC analysis in progress...`, true);
+                    showStatusBar(tabName, `<strong>Waiting:</strong> Prioritizing ${bbcPendingCount} pending BBC articles. CNN analysis will resume automatically when finished.`, true);
+                    // We still try to fetch in case there is cached data on server
                 }
                 
-                const aiResponse = await fetch(`${aiEndpoint}?lang=${lang}&model=${model}`);
+                const aiResponse = await fetchWithTimeout(`${aiEndpoint}?lang=${lang}&model=${model}`);
                 if (aiResponse.ok) {
                     const clusters = await aiResponse.json();
+                    // Cache the clusters if they are valid
                     if (clusters.length > 0 && !clusters[0].topic.includes('Error')) {
                         setCachedClusters(tabName, lang, model, clusters);
                     }
                     updateCardsWithClusters(container, clusters, isBBC);
                     if (clusters.length > 0) {
-                         const msg = clusters[0].topic.includes('Error') ? clusters[0].topic : `Analysis Complete (${clusters.length} topics)`;
-                         showStatusBar(tabName, msg, false);
+                        if (clusters[0].topic.includes('Error')) {
+                            showStatusBar(tabName, clusters[0].topic + ': ' + clusters[0].summary, false);
+                        } else {
+                            showStatusBar(tabName, `Analysis Complete. (${clusters.length} topics found)`, false);
+                        }
                     } else {
-                        showStatusBar(tabName, 'No significant topics found.', false);
+                        showStatusBar(tabName, 'Analysis returned no results.', false);
+                        updateCardsWithClusters(container, [], isBBC);
                     }
                 } else {
-                    throw new Error(await aiResponse.text());
+                    // AI analysis fetch failed
+                    const errorText = await aiResponse.text();
+                    console.error('AI analysis fetch failed:', errorText);
+                    const loaders = container.querySelectorAll('.loading-label');
+                    loaders.forEach(l => l.innerHTML = `<span class="text-danger">AI Analysis: Failed to load (${aiResponse.status})</span>`);
+                    showStatusBar(tabName, 'Analysis failed: ' + errorText, false);
                 }
             } catch (error) {
                 console.error(error);
-                showStatusBar(tabName, 'Error: ' + error.message, false);
+                let msg = error.name === 'AbortError' ? 'Request timed out' : error.message;
+                showStatusBar(tabName, 'Error: ' + msg, false);
+                const loaders = container.querySelectorAll('.loading-label');
+                loaders.forEach(l => l.innerHTML = `<span class="text-danger">AI Analysis: ${msg}</span>`);
             }
         }
 
@@ -704,15 +738,16 @@
             
             try {
                 // 1. Fetch Server-Side Summarized/Analyzed News (Background Processed)
-                // The backend scheduler now maintains this list in the database.
-                const summarizedResponse = await fetch(`/api/news/bbc/merged?lang=${lang}&model=${model}`);
+                // Note: The summarized list in DB currently mixes ALL categories. 
+                // We might want to filter this in the future, but for now it shows all analyzed items.
+                const summarizedResponse = await fetchWithTimeout(`/api/news/bbc/merged?lang=${lang}&model=${model}`);
                 let summarizedClusters = [];
                 if (summarizedResponse.ok) {
                     summarizedClusters = await summarizedResponse.json();
                 }
 
                 // 2. Fetch Raw News for specific category
-                const rawResponse = await fetch(`/api/news?category=${currentCategory}`);
+                const rawResponse = await fetchWithTimeout(`/api/news?category=${currentCategory}`);
                 const rawItems = await rawResponse.json();
                 
                 newContainer.innerHTML = '';
