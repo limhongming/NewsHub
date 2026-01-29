@@ -31,6 +31,7 @@ public class NewsController {
 
     @GetMapping
     public List<NewsItem> getNews(@RequestParam(defaultValue = "world") String category) {
+        System.out.println("CONTROLLER: getNews called for category: " + category);
         return newsService.getNewsByCategory(category);
     }
 

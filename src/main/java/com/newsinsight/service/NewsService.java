@@ -46,6 +46,7 @@ public class NewsService {
     
     public List<NewsItem> getNewsByCategory(String category) {
         String feedUrl = CATEGORY_FEEDS.getOrDefault(category.toLowerCase(), CATEGORY_FEEDS.get("world"));
+        System.out.println("SERVICE: Fetching news for category '" + category + "' from: " + feedUrl);
         return fetchNewsFromRss(feedUrl, 50);
     }
 
