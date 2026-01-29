@@ -744,7 +744,7 @@
 
             // 1. Fetch Raw News (RSS) - Independent
             try {
-                const rawResponse = await fetchWithTimeout(`/api/news?category=${currentCategory}`);
+                const rawResponse = await fetchWithTimeout(`/api?category=${currentCategory}`);
                 if (rawResponse.ok) {
                     rawItems = await rawResponse.json();
                     if (rawItems) rawItems.forEach(i => itemMap.set(normalizeUrl(i.link), i));
