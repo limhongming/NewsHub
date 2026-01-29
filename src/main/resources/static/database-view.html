@@ -22,6 +22,7 @@
                     <tr>
                         <th>#</th>
                         <th>Cache Key</th>
+                        <th>Category</th>
                         <th>Topic</th>
                         <th>Summary</th>
                         <th>Impact</th>
@@ -31,7 +32,7 @@
                     </tr>
                 </thead>
                 <tbody id="data-body">
-                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
+                    <tr><td colspan="9" class="text-center">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -89,6 +90,7 @@
                             <tr>
                                 <td>${globalIndex++}</td>
                                 <td class="font-monospace small text-warning">${entity.cacheKey || 'N/A'}</td>
+                                <td><span class="badge bg-secondary border border-secondary">${entity.tab || 'N/A'}</span></td>
                                 <td>${item.topic}</td>
                                 <td class="json-cell" style="max-width: 400px;">${item.summary}</td>
                                 <td>
