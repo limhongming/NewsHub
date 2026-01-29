@@ -71,22 +71,29 @@ public class NewsController {
     }
 
     @GetMapping("/news/bbc/merged")
-    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, @RequestParam(defaultValue = "gemini-1.5-flash") String model) {
-        System.out.println("CONTROLLER: getBBCMergedNews request for model: " + model);
+    public List<MergedNewsCluster> getBBCMergedNews(@RequestParam(defaultValue = "English") String lang, 
+                                                    @RequestParam(defaultValue = "gemini-1.5-flash") String model,
+                                                    @RequestParam(defaultValue = "world") String category) {
+        System.out.println("CONTROLLER: getBBCMergedNews request for model: " + model + ", category: " + category);
         
-        // Fix for deprecated/invalid model names: Map "2.5" requests to a stable model.
+        // Fix for deprecated/invalid model names
         if (model.contains("2.5") || model.contains("2.0")) {
-            System.out.println("CONTROLLER: Model " + model + " requested, mapping to gemini-1.5-flash.");
             model = "gemini-1.5-flash";
         }
 
+        // Construct unique tab name for this category to isolate cache
+        String tabName = "bbc-" + category.toLowerCase();
+
         // Return cached news immediately. 
-        // Background updates are handled by NewsSchedulerService.
-        List<MergedNewsCluster> cached = newsCacheService.getCachedNews("bbc", lang, model);
+        List<MergedNewsCluster> cached = newsCacheService.getCachedNews(tabName, lang, model);
+        
+        // Fallback: If "bbc-world" is empty (maybe migration phase), check the legacy "bbc" key
+        if ((cached == null || cached.isEmpty()) && "world".equalsIgnoreCase(category)) {
+             cached = newsCacheService.getCachedNews("bbc", lang, model);
+        }
+        
         if (cached != null) return cached;
         
-        // If nothing in cache yet (e.g. first startup), return empty list or consider triggering an async update.
-        // For now, we return empty to avoid blocking the UI.
         return List.of();
     }
 
