@@ -839,8 +839,14 @@
             card.className = 'col-md-6 col-lg-4 fade-in';
             card.dataset.normalizedLink = normalizeUrl(item.link);
             
+            // Store item for modal access
+            window.newsItemsMap[normUrl] = item;
+            
             const imageUrl = isAnalyzed ? (analysis.imageUrl || item.imageUrl) : item.imageUrl;
-            const imgHtml = imageUrl ? `<img src="${imageUrl}" class="card-img-top" alt="news image" onerror="this.style.display='none'">` : '';
+            if (imageUrl) console.log("Rendering card with image:", imageUrl);
+            
+            // Add referrerpolicy="no-referrer" to bypass hotlinking protection
+            const imgHtml = imageUrl ? `<img src="${imageUrl}" class="card-img-top" alt="news image" referrerpolicy="no-referrer" onerror="this.style.display='none'; console.warn('Image failed to load:', '${imageUrl}');">` : '';
 
             if (isAnalyzed && analysis) {
                 const rating = analysis.impact_rating || 'N/A';
