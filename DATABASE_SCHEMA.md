@@ -26,9 +26,32 @@ Stores the aggregated/summarized news lists for the main feed tabs. This is what
 | `tab` | `varchar(255)` | | The source/category tab (e.g., `bbc`, `bbc-world`, `cnn`) |
 | `language` | `varchar(255)` | | Language of the analysis (e.g., `English`) |
 | `model` | `varchar(255)` | | AI Model used (e.g., `deepseek-chat`, `gemini-1.5-flash`) |
-| `data_json` | `json` | | **CRITICAL:** Stores the list of `MergedNewsCluster` objects. Contains `topic`, `summary`, `image_url`, etc. |
+| `data_json` | `json` | | **CRITICAL:** Stores the list of `MergedNewsCluster` objects. See **JSON Structure** below. |
 | `created_at` | `datetime(6)` | | When this batch was processed |
 | `expires_at` | `datetime(6)` | MUL | When this batch becomes stale (indexed for cleanup) |
+
+#### JSON Structure (`data_json`) for `news_cache_clusters`
+This column contains an **Array** of objects. Each object represents one analyzed news item or cluster.
+
+```json
+[
+  {
+    "topic": "Heavy gunfire and blasts near airport in Niger's capital",
+    "summary": "Reports of heavy gunfire and explosions near Niamey airport...",
+    "economic_impact": "Potential disruption to regional trade routes...",
+    "global_impact": "Raises concerns about Sahel stability...",
+    "impact_rating": "6",          // String: 1-10 scale (Strict criteria: 8+ is massive global event)
+    "what_next": "Expect border closures and emergency UN meetings...",
+    "related_links": [               // List of source URLs used for this cluster
+      "https://www.bbc.com/news/world-africa-..."
+    ],
+    "model_used": "deepseek-chat",   // Which AI generated this analysis
+    "image_url": "https://ichef.bbci.co.uk/...", // snake_case key. CRITICAL for frontend display.
+    "published_date": "2026-01-29T15:23:11Z",
+    "author": null
+  }
+]
+```
 
 ### B. `article_cache`
 Stores the detailed analysis for *individual* articles. This is accessed when you click "Read Full Article" on a manually imported link or a specific item.
@@ -38,9 +61,27 @@ Stores the detailed analysis for *individual* articles. This is accessed when yo
 | `id` | `bigint` | PK | Auto-increment primary key |
 | `url_hash` | `varchar(255)` | UNI | SHA-256 or similar hash of the article URL (primary lookup key) |
 | `url` | `varchar(768)` | | The full original URL of the article |
-| `data_json` | `json` | | Stores `AnalysisResponse` (summary, ratings, full text, extracted image) |
+| `data_json` | `json` | | Stores `AnalysisResponse`. See **JSON Structure** below. |
 | `created_at` | `datetime(6)` | | Creation time |
 | `expires_at` | `datetime(6)` | | Expiration time |
+
+#### JSON Structure (`data_json`) for `article_cache`
+This column contains a **Single Object** representing the deep-dive analysis.
+
+```json
+{
+  "analysis": {
+    "summary": "Detailed executive summary of the specific article...",
+    "economic_impact": "Specific impact on local markets...",
+    "global_impact": "Broader geopolitical implications...",
+    "impact_rating": 5,              // Integer: 1-10 scale
+    "urgency": "Medium"              // Low, Medium, High, Critical
+  },
+  "full_text": "The full scraped text of the article body goes here...",
+  "image_url": "https://ichef.bbci.co.uk/...", // Scraped image URL
+  "debug_info": "Scraped from: https://..."
+}
+```
 
 ---
 
