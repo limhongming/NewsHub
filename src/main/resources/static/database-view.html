@@ -76,7 +76,8 @@
                     return;
                 }
                 
-                data.forEach((entity, index) => {
+                let globalIndex = 1;
+                data.forEach((entity) => {
                     const clusters = JSON.parse(entity.dataJson || '[]');
                     clusters.forEach((item) => {
                         let imgCell = '<span class="text-muted">None</span>';
@@ -86,7 +87,7 @@
                         
                         const row = `
                             <tr>
-                                <td>${index + 1}</td>
+                                <td>${globalIndex++}</td>
                                 <td class="font-monospace small text-warning">${entity.cacheKey || 'N/A'}</td>
                                 <td>${item.topic}</td>
                                 <td class="json-cell" style="max-width: 400px;">${item.summary}</td>
