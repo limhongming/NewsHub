@@ -148,12 +148,18 @@ public class NewsService {
                             System.out.println("DEBUG: No image found for [" + entry.getTitle() + "]");
                         }
                         
+                        String author = entry.getAuthor();
+                        if (author == null || author.isEmpty()) {
+                            author = null; 
+                        }
+                        
                         newsItems.add(new NewsItem(
                                 entry.getTitle(),
                                 entry.getLink(),
                                 entry.getPublishedDate(),
                                 description,
-                                imageUrl
+                                imageUrl,
+                                author
                         ));
                     }
                 }
@@ -166,7 +172,8 @@ public class NewsService {
                 "#",
                 new java.util.Date(),
                 "Error details: " + e.toString() + " (" + feedUrlStr + ")",
-                null // FIXED: Added null for imageUrl
+                null,
+                null
             ));
         }
         return newsItems;
@@ -257,11 +264,11 @@ public class NewsService {
             
             if (content == null) content = "Content could not be scraped.";
 
-            return new NewsItem(title, url, new java.util.Date(), content, imageUrl);
+            return new NewsItem(title, url, new java.util.Date(), content, imageUrl, null);
 
         } catch (Exception e) {
             System.err.println("Error scraping NewsItem (" + url + "): " + e.getMessage());
-            return new NewsItem("Error Fetching: " + url, url, new java.util.Date(), "Failed to scrape: " + e.getMessage(), null);
+            return new NewsItem("Error Fetching: " + url, url, new java.util.Date(), "Failed to scrape: " + e.getMessage(), null, null);
         }
     }
 

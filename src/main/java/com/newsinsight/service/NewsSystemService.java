@@ -329,10 +329,10 @@ public class NewsSystemService {
             return new MergedNewsCluster(
                 (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
                 (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
-                Collections.emptyList(), result.model(), null, null
+                Collections.emptyList(), result.model(), null, null, null
             );
         } catch (Exception e) {
-            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error", null, null);
+            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", Collections.emptyList(), "Error", null, null, null);
         }
     }
 // ...
@@ -387,7 +387,7 @@ public class NewsSystemService {
             return list.stream().map(map -> new MergedNewsCluster(
                 (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
                 (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
-                (List<String>)map.get("related_links"), result.model(), null
+                (List<String>)map.get("related_links"), result.model(), null, null, null
             )).collect(java.util.stream.Collectors.toList());
         } catch (Exception e) {
             e.printStackTrace();
@@ -421,10 +421,12 @@ public class NewsSystemService {
             return new MergedNewsCluster(
                 (String)map.get("topic"), (String)map.get("summary"), (String)map.get("economic_impact"),
                 (String)map.get("global_impact"), String.valueOf(map.get("impact_rating")), (String)map.get("what_next"),
-                List.of(item.link()), result.model(), item.imageUrl()
+                List.of(item.link()), result.model(), item.imageUrl(),
+                item.published() != null ? item.published().toString() : null,
+                item.author()
             );
         } catch (Exception e) {
-            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", List.of(item.link()), "Error", null);
+            return new MergedNewsCluster("Analysis Error", e.getMessage(), "N/A", "N/A", "0", "N/A", List.of(item.link()), "Error", null, null, null);
         }
     }
     
