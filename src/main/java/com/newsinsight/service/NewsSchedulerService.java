@@ -21,7 +21,7 @@ public class NewsSchedulerService {
 
     // We focus on the user's preferred configuration
     private static final String TARGET_LANG = "English";
-    private static final String TARGET_MODEL = "deepseek-chat";
+    private static final String TARGET_MODEL = "deepseek-chat"; 
 
     // Local cache for RSS feeds to avoid over-fetching from source
     private List<NewsItem> cachedBBCRaw = new ArrayList<>();

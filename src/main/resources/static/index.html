@@ -977,13 +977,11 @@
                 select.innerHTML = '';
                 models.sort((a, b) => a.name.includes('flash') ? -1 : 1);
                 
-                models.forEach(model => {
-                    const opt = document.createElement('option'); 
-                    opt.value = model.name; 
-                    opt.text = `${model.displayName} (${model.version})`;
-                    if (model.name === 'gemini-1.5-flash') opt.selected = true; 
-                    select.add(opt);
-                });
+                    models.forEach(model => {
+                        const opt = document.createElement('option'); opt.value = model.name; opt.text = model.displayName + " (" + model.version + ")";
+                        if (model.name === 'deepseek-chat') opt.selected = true; 
+                        select.add(opt);
+                    });
                 initTooltips();
             } catch (e) { console.error("Model load error:", e); }
         }
