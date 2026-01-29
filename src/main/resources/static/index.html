@@ -839,8 +839,8 @@
             card.className = 'col-md-6 col-lg-4 fade-in';
             card.dataset.normalizedLink = normalizeUrl(item.link);
             
-            // Fix: Use snake_case 'image_url' from backend JSON
-            const imageUrl = isAnalyzed ? (analysis.image_url || item.imageUrl) : item.imageUrl;
+            // Fix: Check BOTH snake_case (new) and camelCase (legacy/cached)
+            const imageUrl = isAnalyzed ? (analysis.image_url || analysis.imageUrl || item.imageUrl) : item.imageUrl;
             const imgHtml = imageUrl ? `<img src="${imageUrl}" class="card-img-top" alt="news image" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : '';
 
             if (isAnalyzed && analysis) {
