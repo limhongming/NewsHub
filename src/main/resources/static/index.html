@@ -741,7 +741,7 @@
                 // 1. Fetch Server-Side Summarized/Analyzed News (Background Processed)
                 // Note: The summarized list in DB currently mixes ALL categories. 
                 // We might want to filter this in the future, but for now it shows all analyzed items.
-                const summarizedResponse = await fetchWithTimeout(`/api/news/bbc/merged?lang=${lang}&model=${model}`);
+                const summarizedResponse = await fetchWithTimeout(`/api/news/bbc/merged?lang=${lang}&model=${model}&category=${currentCategory}`);
                 let summarizedClusters = [];
                 if (summarizedResponse.ok) {
                     summarizedClusters = await summarizedResponse.json();
