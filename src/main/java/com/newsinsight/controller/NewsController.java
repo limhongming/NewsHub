@@ -191,12 +191,47 @@ public class NewsController {
     @GetMapping("/debug/backup")
     public ResponseEntity<Map<String, Object>> downloadBackup() {
         Map<String, Object> backup = new java.util.HashMap<>();
-        backup.put("timestamp", java.time.LocalDateTime.now().toString());
-        backup.put("clusters", newsCacheService.getAllCachedClusters());
-        backup.put("articles", newsCacheService.getAllCachedArticles());
+        backup.put("export_timestamp", java.time.LocalDateTime.now().toString());
+        
+        // Process Clusters: Parse dataJson string into real JSON for the backup file
+        List<Map<String, Object>> clusterExport = newsCacheService.getAllCachedClusters().stream().map(entity -> {
+            Map<String, Object> map = new java.util.HashMap<>();
+            map.put("id", entity.getId());
+            map.put("cache_key", entity.getCacheKey());
+            map.put("tab", entity.getTab());
+            map.put("language", entity.getLanguage());
+            map.put("model", entity.getModel());
+            map.put("created_at", entity.getCreatedAt());
+            map.put("expires_at", entity.getExpiresAt());
+            try {
+                // Convert the stored JSON string back into a real object/list for the export
+                map.put("data_json", new com.fasterxml.jackson.databind.ObjectMapper().readTree(entity.getDataJson()));
+            } catch (Exception e) {
+                map.put("data_json", entity.getDataJson());
+            }
+            return map;
+        }).collect(java.util.stream.Collectors.toList());
+        
+        // Process Articles
+        List<Map<String, Object>> articleExport = newsCacheService.getAllCachedArticles().stream().map(entity -> {
+            Map<String, Object> map = new java.util.HashMap<>();
+            map.put("id", entity.getId());
+            map.put("url", entity.getUrl());
+            map.put("url_hash", entity.getUrlHash());
+            map.put("cache_type", entity.getCacheType());
+            try {
+                map.put("data_json", new com.fasterxml.jackson.databind.ObjectMapper().readTree(entity.getDataJson()));
+            } catch (Exception e) {
+                map.put("data_json", entity.getDataJson());
+            }
+            return map;
+        }).collect(java.util.stream.Collectors.toList());
+
+        backup.put("news_cache_clusters", clusterExport);
+        backup.put("article_cache", articleExport);
         
         return ResponseEntity.ok()
-            .header("Content-Disposition", "attachment; filename=newshub_backup_" + java.time.LocalDate.now() + ".json")
+            .header("Content-Disposition", "attachment; filename=newshub_full_backup_" + java.time.LocalDate.now() + ".json")
             .body(backup);
     }
 
