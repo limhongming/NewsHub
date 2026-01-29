@@ -174,6 +174,10 @@ public class NewsCacheService {
         return articleRepository.findAll();
     }
 
+    public List<NewsCacheClusterEntity> getAllCachedClusters() {
+        return clusterRepository.findAll();
+    }
+
     private String generateCacheKey(String tab, String lang, String model) {
         return String.format("%s_%s_%s", 
             tab.replaceAll("[^a-zA-Z0-9]", ""), 

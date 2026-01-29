@@ -21,6 +21,7 @@
                 <thead>
                     <tr>
                         <th>#</th>
+                        <th>Cache Key</th>
                         <th>Topic</th>
                         <th>Summary</th>
                         <th>Impact</th>
@@ -30,7 +31,7 @@
                     </tr>
                 </thead>
                 <tbody id="data-body">
-                    <tr><td colspan="7" class="text-center">Loading...</td></tr>
+                    <tr><td colspan="8" class="text-center">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -63,7 +64,7 @@
 
         async function loadClusters() {
             const tbody = document.getElementById('data-body');
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Loading...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Loading...</td></tr>';
             
             try {
                 const response = await fetch('/api/debug/clusters');
@@ -71,34 +72,38 @@
                 
                 tbody.innerHTML = '';
                 if (!data || data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center">No data found in cache.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center">No data found in cache.</td></tr>';
                     return;
                 }
                 
-                data.forEach((item, index) => {
-                    let imgCell = '<span class="text-muted">None</span>';
-                    if (item.imageUrl) {
-                        imgCell = `<a href="${item.imageUrl}" target="_blank"><img src="${item.imageUrl}" style="height: 50px; border-radius: 4px;"></a>`;
-                    }
-                    
-                    const row = `
-                        <tr>
-                            <td>${index + 1}</td>
-                            <td>${item.topic}</td>
-                            <td class="json-cell" style="max-width: 400px;">${item.summary}</td>
-                            <td>
-                                <div class="badge bg-secondary">Rating: ${item.impact_rating}</div>
-                                <div class="small text-info mt-1">Econ: ${item.economic_impact}</div>
-                            </td>
-                            <td class="json-cell">${(item.related_links || []).join('\n')}</td>
-                            <td><span class="badge bg-dark border">${item.modelUsed}</span></td>
-                            <td>${imgCell}</td>
-                        </tr>
-                    `;
-                    tbody.innerHTML += row;
+                data.forEach((entity, index) => {
+                    const clusters = JSON.parse(entity.dataJson || '[]');
+                    clusters.forEach((item) => {
+                        let imgCell = '<span class="text-muted">None</span>';
+                        if (item.imageUrl) {
+                            imgCell = `<a href="${item.imageUrl}" target="_blank"><img src="${item.imageUrl}" style="height: 50px; border-radius: 4px;"></a>`;
+                        }
+                        
+                        const row = `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td class="font-monospace small text-warning">${entity.cacheKey || 'N/A'}</td>
+                                <td>${item.topic}</td>
+                                <td class="json-cell" style="max-width: 400px;">${item.summary}</td>
+                                <td>
+                                    <div class="badge bg-secondary">Rating: ${item.impact_rating}</div>
+                                    <div class="small text-info mt-1">Econ: ${item.economic_impact}</div>
+                                </td>
+                                <td class="json-cell">${(item.related_links || []).join('\n')}</td>
+                                <td><span class="badge bg-dark border">${item.modelUsed}</span></td>
+                                <td>${imgCell}</td>
+                            </tr>
+                        `;
+                        tbody.innerHTML += row;
+                    });
                 });
             } catch (e) {
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Error: ${e.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Error: ${e.message}</td></tr>`;
             }
         }
 
