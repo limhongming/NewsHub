@@ -447,7 +447,8 @@
 
         function normalizeUrl(url) {
             if (!url) return '';
-            return url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase();
+            // Strip protocol, trailing slash, AND query parameters
+            return url.replace(/^https?:\/\//, '').split('?')[0].replace(/\/$/, '').toLowerCase();
         }
         
         function switchCategory(cat, btn) {
@@ -765,15 +766,30 @@
                      });
 
                      summarizedClusters.forEach(cluster => {
-                         if (cluster.topic && cluster.topic.includes('Error')) return;
-                         let originalItem = cluster.related_links?.[0] ? itemMap.get(normalizeUrl(cluster.related_links[0])) : null;
-                         const item = originalItem || {
-                             title: cluster.topic,
-                             link: cluster.related_links?.[0] || '#',
-                             published: new Date(),
-                             summary: cluster.summary
-                         };
-                         summarizedContainer.appendChild(createArticleCard(item, cluster, true));
+                         try {
+                             // Skip error clusters if you want, or show them
+                             if (cluster.topic && cluster.topic.includes('Error')) return;
+    
+                             // Find matching raw item to get date/title if possible
+                             let originalItem = null;
+                             if (cluster.related_links && cluster.related_links.length > 0) {
+                                 originalItem = itemMap.get(normalizeUrl(cluster.related_links[0]));
+                             }
+                             
+                             // If we can't find the original item (maybe it fell off RSS), we construct a dummy one
+                             const item = originalItem || {
+                                 title: cluster.topic,
+                                 link: cluster.related_links && cluster.related_links.length > 0 ? cluster.related_links[0] : '#',
+                                 published: new Date(), // We don't have date in cluster (should add it to DB schema later)
+                                 summary: cluster.summary
+                             };
+                             
+                             // Create card
+                             const card = createArticleCard(item, cluster, true);
+                             summarizedContainer.appendChild(card);
+                         } catch (err) {
+                             console.error("Failed to render cluster card:", cluster, err);
+                         }
                      });
                      showStatusBar('bbc-summarized', `${summarizedClusters.length} analyzed articles.`, false);
                 } else {
