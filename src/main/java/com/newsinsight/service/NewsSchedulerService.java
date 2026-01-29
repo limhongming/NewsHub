@@ -180,6 +180,6 @@ public class NewsSchedulerService {
     
     private String normalizeLink(String url) {
         if (url == null) return "";
-        return url.split("\\\?")[0].toLowerCase().trim();
+        return url.split("[?]")[0].toLowerCase().trim();
     }
 }
