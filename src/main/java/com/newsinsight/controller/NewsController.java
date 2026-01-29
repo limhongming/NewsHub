@@ -6,6 +6,7 @@ import com.newsinsight.model.GeminiModel;
 import com.newsinsight.model.SnippetRequest;
 import com.newsinsight.model.AnalysisRequest;
 import com.newsinsight.model.AnalysisResponse;
+import com.newsinsight.model.ArticleCacheEntity;
 import com.newsinsight.service.NewsSystemService;
 import com.newsinsight.service.NewsService;
 import com.newsinsight.service.NewsCacheService;
@@ -186,7 +187,6 @@ public class NewsController {
         newsCacheService.clearAllCaches();
         return ResponseEntity.ok("System Reset Complete: All caches cleared. The system will strictly follow the new schema and re-fetch fresh data.");
     }
-}
 
     @PostMapping("/news/import")
     public ResponseEntity<?> manualImport(@RequestBody Map<String, List<String>> payload) {
@@ -266,7 +266,7 @@ public class NewsController {
         }
     }
 
-    @GetMapping("/api/usage")
+    @GetMapping("/usage")
     public Map<String, Object> getApiUsageStats() {
         return newsSystemService.getApiUsageStats();
     }
