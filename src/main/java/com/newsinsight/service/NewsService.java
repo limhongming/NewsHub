@@ -80,7 +80,8 @@ public class NewsService {
                         "#",
                         new java.util.Date(),
                         "The RSS feed (" + feedUrlStr + ") was accessed but returned no articles. Parsing issue or empty feed.",
-                        null // FIXED: Added null for imageUrl
+                        null, // imageUrl
+                        null  // author
                     ));
                 } else {
                     System.out.println("Successfully parsed " + entries.size() + " entries from " + feedUrlStr);
