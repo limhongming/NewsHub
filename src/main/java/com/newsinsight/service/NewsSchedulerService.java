@@ -145,7 +145,8 @@ public class NewsSchedulerService {
                 newResult.global_impact(), newResult.impact_rating(), newResult.what_next(),
                 Collections.singletonList(candidate.link()), newResult.modelUsed(),
                 candidate.imageUrl(),
-                candidate.published() != null ? candidate.published().toString() : null
+                candidate.published() != null ? candidate.published().toString() : null,
+                candidate.author()
             );
         }
 
@@ -179,6 +180,6 @@ public class NewsSchedulerService {
     
     private String normalizeLink(String url) {
         if (url == null) return "";
-        return url.split("\\?")[0].toLowerCase().trim();
+        return url.split("\\\?")[0].toLowerCase().trim();
     }
 }
